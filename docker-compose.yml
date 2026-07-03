@@ -1,0 +1,57 @@
+services:
+  postgres:
+    # Built from infra/postgres: postgis/postgis:16-3.4 + pgvector. The spec's
+    # pgvector/pgvector:pg16 image lacks PostGIS, which the schema requires.
+    build: infra/postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: concertradar
+      POSTGRES_USER: cr
+      POSTGRES_PASSWORD: cr_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c max_connections=100
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+volumes:
+  pgdata:
