@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DATABASE_URL_SYNC="${DATABASE_URL_SYNC:-postgresql://cr:cr_dev@localhost:5432/concertradar}"
+DATABASE_URL_SYNC="${DATABASE_URL_SYNC:-postgresql://cr:cr_dev@localhost:5433/concertradar}"
 
 run_sql_file() {
   if command -v psql >/dev/null 2>&1; then

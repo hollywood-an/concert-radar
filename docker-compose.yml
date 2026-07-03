@@ -4,7 +4,9 @@ services:
     # pgvector/pgvector:pg16 image lacks PostGIS, which the schema requires.
     build: infra/postgres
     ports:
-      - "5432:5432"
+      # Host port 5433: a Homebrew Postgres on this machine owns 127.0.0.1:5432
+      # and would shadow the container for localhost connections.
+      - "5433:5432"
     environment:
       POSTGRES_DB: concertradar
       POSTGRES_USER: cr
