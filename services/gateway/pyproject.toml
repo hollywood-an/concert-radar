@@ -1,0 +1,56 @@
+[project]
+name = "gateway"
+version = "0.1.0"
+description = "Concert Radar REST gateway (Phase 2 skeleton)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "sqlalchemy[asyncio]>=2.0.35",
+    "asyncpg>=0.29",
+    "geoalchemy2>=0.15",
+    "pgvector>=0.3",
+    "pydantic-settings>=2.5",
+    "python-jose[cryptography]>=3.3",
+    "httpx>=0.27",
+    "structlog>=24.4",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.26",
+    "testcontainers>=4.8",
+    "mypy>=1.13",
+    "ruff>=0.8",
+    "types-python-jose>=3.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*", "asyncpg", "asyncpg.*", "testcontainers.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+pythonpath = ["."]
+testpaths = ["tests"]
