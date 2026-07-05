@@ -16,4 +16,4 @@ class Settings(BaseSettings):
     # Ticketmaster DMA 259 is the Columbus OH market. (The spec says 249, but that
     # is Chicago in Ticketmaster's DMA scheme — verified against the live API.)
     ticketmaster_dma_id: int = 259
-    database_url: str = "postgresql+asyncpg://cr:cr_dev@localhost:5433/concertradar"
+    kafka_bootstrap_servers: str = "localhost:19092"

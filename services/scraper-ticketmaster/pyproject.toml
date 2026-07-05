@@ -1,17 +1,16 @@
 [project]
 name = "scraper-ticketmaster"
 version = "0.1.0"
-description = "CLI scraper for the Ticketmaster Discovery API that upserts events into Postgres."
+description = "CLI scraper for the Ticketmaster Discovery API that publishes events.discovered."
 requires-python = ">=3.12"
 dependencies = [
-    "asyncpg>=0.29",
+    "aiokafka>=0.11",
     "httpx>=0.27",
     "opentelemetry-api>=1.25",
     "opentelemetry-exporter-otlp-proto-grpc>=1.25",
     "opentelemetry-sdk>=1.25",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
-    "sqlalchemy[asyncio]>=2.0",
     "structlog>=24.1",
 ]
 
@@ -39,7 +38,7 @@ python_version = "3.12"
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["asyncpg", "testcontainers.*"]
+module = ["aiokafka.*", "testcontainers.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
