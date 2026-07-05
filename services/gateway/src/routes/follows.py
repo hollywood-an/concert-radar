@@ -1,4 +1,4 @@
-"""Follow management (Phase 3: recompute taste embedding inline, no Kafka publish yet)."""
+"""Follow management: recompute the taste embedding and publish users.taste_updated."""
 
 from uuid import UUID
 
@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import text
 
 from src.deps import CurrentUser, DbSession
+from src.kafka import get_taste_publisher
 from src.models import Artist
 from src.schemas import ArtistSummary, FollowRequest
 
@@ -59,6 +60,7 @@ async def create_follow(
     await session.execute(_INSERT_FOLLOW, {"user_id": user.id, "artist_id": body.artist_id})
     await session.execute(_RECOMPUTE_TASTE, {"user_id": user.id})
     await session.commit()
+    await get_taste_publisher().publish(user.id)
     logger.info("follow_created", user_id=str(user.id), artist_id=str(body.artist_id))
     return ArtistSummary(
         id=artist.id,
@@ -75,5 +77,6 @@ async def delete_follow(artist_id: UUID, user: CurrentUser, session: DbSession) 
     await session.execute(_DELETE_FOLLOW, {"user_id": user.id, "artist_id": artist_id})
     await session.execute(_RECOMPUTE_TASTE, {"user_id": user.id})
     await session.commit()
+    await get_taste_publisher().publish(user.id)
     logger.info("follow_deleted", user_id=str(user.id), artist_id=str(artist_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

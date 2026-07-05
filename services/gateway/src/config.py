@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(_REPO_ENV_FILE, Path(".env")), extra="ignore")
 
     database_url: str = "postgresql+asyncpg://cr:cr_dev@localhost:5433/concertradar"
+    kafka_bootstrap_servers: str = "localhost:19092"
     jwt_secret: str = "dev-secret-change-in-prod"
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 72

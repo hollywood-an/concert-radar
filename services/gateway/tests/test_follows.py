@@ -1,12 +1,15 @@
-"""Tests for POST/DELETE/GET /follows and taste-embedding recomputation."""
+"""Tests for POST/DELETE/GET /follows, taste-embedding recomputation, and Kafka publishes."""
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from aiokafka import AIOKafkaConsumer
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.kafka import USERS_TASTE_UPDATED_TOPIC
 from tests.conftest import create_event
 
 FUTURE = datetime.now(UTC) + timedelta(days=30)
@@ -102,6 +105,40 @@ async def test_unfollow_is_idempotent(client: httpx.AsyncClient) -> None:
     artist_id = await _artist_id(client, headers, "Sylvan Esso")
     response = await client.delete(f"/follows/{artist_id}", headers=headers)
     assert response.status_code == 204
+
+
+async def test_follow_and_unfollow_publish_taste_updated(
+    client: httpx.AsyncClient, kafka_bootstrap: str
+) -> None:
+    """Both follow and unfollow publish users.taste_updated keyed by the user uuid."""
+    user_id, headers = await _login(client, "publisher@example.com")
+    artist_id = await _artist_id(client, headers, "Caroline Polachek")
+    assert (
+        await client.post("/follows", json={"artist_id": artist_id}, headers=headers)
+    ).status_code == 201
+    assert (await client.delete(f"/follows/{artist_id}", headers=headers)).status_code == 204
+
+    consumer = AIOKafkaConsumer(
+        USERS_TASTE_UPDATED_TOPIC,
+        bootstrap_servers=kafka_bootstrap,
+        auto_offset_reset="earliest",
+        consumer_timeout_ms=10_000,
+    )
+    await consumer.start()
+    mine = []
+    try:
+        async for message in consumer:
+            if message.key == user_id.encode():
+                mine.append(message)
+                if len(mine) == 2:
+                    break
+    finally:
+        await consumer.stop()
+
+    assert len(mine) == 2, "expected one message for the follow and one for the unfollow"
+    for message in mine:
+        assert json.loads(message.value) == {"user_id": user_id}
+        assert "traceparent" in {name for name, _ in message.headers}
 
 
 async def test_follow_reranks_feed(client: httpx.AsyncClient, db: AsyncSession) -> None:

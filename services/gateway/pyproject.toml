@@ -1,9 +1,10 @@
 [project]
 name = "gateway"
 version = "0.1.0"
-description = "Concert Radar REST gateway (Phase 2 skeleton)"
+description = "Concert Radar REST gateway"
 requires-python = ">=3.12"
 dependencies = [
+    "aiokafka>=0.11",
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "sqlalchemy[asyncio]>=2.0.35",
@@ -45,7 +46,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "asyncpg", "asyncpg.*", "testcontainers.*"]
+module = ["aiokafka.*", "pgvector.*", "asyncpg", "asyncpg.*", "testcontainers.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

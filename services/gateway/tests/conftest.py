@@ -14,6 +14,7 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from testcontainers.kafka import RedpandaContainer
 from testcontainers.postgres import PostgresContainer
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -70,14 +71,25 @@ def database_url() -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
-def app(database_url: str) -> FastAPI:
-    """Import the FastAPI app after DATABASE_URL points at the test container."""
+def kafka_bootstrap() -> Iterator[str]:
+    """Start Redpanda in a container and export KAFKA_BOOTSTRAP_SERVERS."""
+    with RedpandaContainer("docker.redpanda.com/redpandadata/redpanda:v24.1.1") as container:
+        bootstrap = container.get_bootstrap_server()
+        os.environ["KAFKA_BOOTSTRAP_SERVERS"] = bootstrap
+        yield bootstrap
+
+
+@pytest.fixture(scope="session")
+def app(database_url: str, kafka_bootstrap: str) -> FastAPI:
+    """Import the FastAPI app after the env points at the test containers."""
     from src.config import get_settings
     from src.deps import get_engine, get_sessionmaker
+    from src.kafka import get_taste_publisher
 
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_sessionmaker.cache_clear()
+    get_taste_publisher.cache_clear()
     from src.main import app as application
 
     return application
@@ -85,10 +97,12 @@ def app(database_url: str) -> FastAPI:
 
 @pytest.fixture(scope="session", autouse=True)
 async def _dispose_engine(app: FastAPI) -> AsyncIterator[None]:
-    """Dispose the app's engine when the test session ends."""
+    """Dispose the app's engine and Kafka producer when the test session ends."""
     yield
     from src.deps import get_engine
+    from src.kafka import get_taste_publisher
 
+    await get_taste_publisher().stop()
     await get_engine().dispose()
 
 

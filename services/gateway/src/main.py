@@ -1,5 +1,8 @@
 """FastAPI application entrypoint for the Concert Radar gateway."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,13 +11,22 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from src.deps import get_sessionmaker
+from src.kafka import get_taste_publisher
 from src.routes import artists, auth, events, feed, follows
 from src.telemetry import configure_telemetry
 
 configure_telemetry("gateway")
 logger = structlog.get_logger()
 
-app = FastAPI(title="Concert Radar Gateway")
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Flush the Kafka producer on shutdown."""
+    yield
+    await get_taste_publisher().stop()
+
+
+app = FastAPI(title="Concert Radar Gateway", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
