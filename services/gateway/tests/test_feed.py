@@ -67,6 +67,73 @@ async def test_feed_excludes_cancelled_event(client: httpx.AsyncClient, db: Asyn
     assert response.json()["items"] == []
 
 
+async def test_feed_items_carry_coordinates_and_genres(
+    client: httpx.AsyncClient, db: AsyncSession
+) -> None:
+    """Feed items expose venue coordinates and headliner genres for the map and filters."""
+    await create_event(db, starts_at=FUTURE)
+    headers = await auth_headers(client, "coords@example.com")
+    item = (await client.get("/feed", headers=headers)).json()["items"][0]
+    assert abs(item["venue_lat"] - 39.9979) < 0.001
+    assert abs(item["venue_lon"] - -83.0083) < 0.001
+    assert "indie rock" in item["artist_genres"]
+
+
+async def test_feed_genre_filter_is_case_insensitive(
+    client: httpx.AsyncClient, db: AsyncSession
+) -> None:
+    """Filtering by genre keeps matching headliners and drops the rest."""
+    await create_event(db, starts_at=FUTURE, lineup=(("The National", 0),))
+    await create_event(db, starts_at=FUTURE, lineup=(("Denzel Curry", 0),), title="Rap Show")
+    headers = await auth_headers(client, "genre@example.com")
+
+    response = await client.get("/feed", params={"genres": ["Hip Hop"]}, headers=headers)
+    items = response.json()["items"]
+    assert [i["artist_name"] for i in items] == ["Denzel Curry"]
+
+
+async def test_feed_price_filter_drops_expensive_and_unpriced(
+    client: httpx.AsyncClient, db: AsyncSession
+) -> None:
+    """A max price keeps only events whose min price is known and under the cap."""
+    await create_event(db, starts_at=FUTURE)  # price_min 2500
+    headers = await auth_headers(client, "price@example.com")
+    assert (
+        len(
+            (await client.get("/feed", params={"max_price_cents": 3000}, headers=headers)).json()[
+                "items"
+            ]
+        )
+        == 1
+    )
+    assert (await client.get("/feed", params={"max_price_cents": 1000}, headers=headers)).json()[
+        "items"
+    ] == []
+
+
+async def test_feed_date_and_distance_filters(client: httpx.AsyncClient, db: AsyncSession) -> None:
+    """Date windows and a distance cap narrow the feed."""
+    await create_event(db, starts_at=FUTURE, title="Soon Show")
+    await create_event(db, starts_at=FUTURE + timedelta(days=40), title="Later Show")
+    headers = await auth_headers(client, "window@example.com")
+
+    in_window = await client.get(
+        "/feed",
+        params={
+            "date_from": (FUTURE - timedelta(days=1)).isoformat(),
+            "date_to": (FUTURE + timedelta(days=1)).isoformat(),
+        },
+        headers=headers,
+    )
+    assert [i["title"] for i in in_window.json()["items"]] == ["Soon Show"]
+
+    # Newport Music Hall is a few km from the default home point.
+    near = await client.get("/feed", params={"max_distance_m": 10000}, headers=headers)
+    assert len(near.json()["items"]) == 2
+    tight = await client.get("/feed", params={"max_distance_m": 100}, headers=headers)
+    assert tight.json()["items"] == []
+
+
 async def test_feed_pagination_walks_all_items_without_duplicates(
     client: httpx.AsyncClient, db: AsyncSession
 ) -> None:

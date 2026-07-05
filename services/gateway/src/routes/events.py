@@ -1,21 +1,39 @@
-"""Event detail endpoint."""
+"""Event detail and dismissal endpoints."""
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+import structlog
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import joinedload, selectinload
 
-from src.deps import DbSession
+from src.deps import CurrentUser, DbSession
 from src.models import Event, EventArtist
 from src.schemas import EventArtistOut, EventDetail, Location, VenueOut
 
 router = APIRouter(tags=["events"])
+logger = structlog.get_logger()
 
 _VENUE_COORDS_SQL = text(
     "SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lon"
     " FROM venues WHERE id = :venue_id"
 )
+
+_INSERT_DISMISSAL = text(
+    "INSERT INTO dismissals (user_id, event_id) VALUES (:user_id, :event_id) ON CONFLICT DO NOTHING"
+)
+
+
+@router.post("/events/{event_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_event(event_id: UUID, user: CurrentUser, session: DbSession) -> Response:
+    """Hide an event from the user's future feeds. Idempotent."""
+    event = await session.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="event not found")
+    await session.execute(_INSERT_DISMISSAL, {"user_id": user.id, "event_id": event_id})
+    await session.commit()
+    logger.info("event_dismissed", user_id=str(user.id), event_id=str(event_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/events/{event_id}")

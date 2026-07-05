@@ -1,6 +1,7 @@
-"""Ranked upcoming-events feed (Phase 2: direct SQL, no materialized view)."""
+"""Ranked upcoming-events feed with optional filters (direct SQL, no materialized view)."""
 
 import base64
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
@@ -11,6 +12,8 @@ from src.schemas import FeedItem, FeedPage
 
 router = APIRouter(tags=["feed"])
 
+# Filter params are always bound; a NULL value disables that filter. Genres are
+# lowercased on both sides so 'Rock' from Ticketmaster matches a 'rock' checkbox.
 _FEED_SQL = text(
     """
     SELECT
@@ -24,10 +27,13 @@ _FEED_SQL = text(
         e.image_url,
         v.name AS venue_name,
         v.city AS venue_city,
+        ST_Y(v.location::geometry) AS venue_lat,
+        ST_X(v.location::geometry) AS venue_lon,
         ST_Distance(u.home_location, v.location) AS distance_m,
         a.id AS artist_id,
         a.name AS artist_name,
         a.image_url AS artist_image_url,
+        COALESCE(a.genres, '{}') AS artist_genres,
         relevance_score(u.taste_embedding, a.embedding, e.starts_at) AS score
     FROM users u
     JOIN venues v ON ST_DWithin(u.home_location, v.location, u.travel_radius_m)
@@ -37,6 +43,19 @@ _FEED_SQL = text(
     WHERE u.id = :user_id
       AND e.starts_at > now()
       AND e.status IN ('announced', 'on_sale')
+      AND NOT EXISTS (
+          SELECT 1 FROM dismissals d WHERE d.user_id = u.id AND d.event_id = e.id
+      )
+      AND (CAST(:date_from AS timestamptz) IS NULL OR e.starts_at >= :date_from)
+      AND (CAST(:date_to AS timestamptz) IS NULL OR e.starts_at <= :date_to)
+      AND (CAST(:max_distance_m AS float) IS NULL
+           OR ST_Distance(u.home_location, v.location) <= :max_distance_m)
+      AND (CAST(:max_price_cents AS int) IS NULL
+           OR e.price_min_cents <= :max_price_cents)
+      AND (CAST(:genres AS text[]) IS NULL OR EXISTS (
+          SELECT 1 FROM unnest(COALESCE(a.genres, '{}')) AS g
+          WHERE lower(g) = ANY(CAST(:genres AS text[]))
+      ))
     ORDER BY score DESC, e.id
     LIMIT :limit OFFSET :offset
     """
@@ -67,11 +86,31 @@ async def get_feed(
     session: DbSession,
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    max_distance_m: Annotated[float | None, Query(gt=0)] = None,
+    max_price_cents: Annotated[int | None, Query(gt=0)] = None,
+    genres: Annotated[list[str] | None, Query()] = None,
 ) -> FeedPage:
-    """Return the user's upcoming events ranked by relevance score, paginated by cursor."""
+    """Return the user's upcoming events ranked by relevance score, paginated by cursor.
+
+    Optional filters narrow the result: a date window, a maximum venue distance, a
+    maximum minimum-ticket price (events without price data are excluded when set),
+    and a genre list matched case-insensitively against the headliner's genres.
+    """
     offset = _decode_cursor(cursor)
     result = await session.execute(
-        _FEED_SQL, {"user_id": user.id, "limit": limit + 1, "offset": offset}
+        _FEED_SQL,
+        {
+            "user_id": user.id,
+            "limit": limit + 1,
+            "offset": offset,
+            "date_from": date_from,
+            "date_to": date_to,
+            "max_distance_m": max_distance_m,
+            "max_price_cents": max_price_cents,
+            "genres": [g.lower() for g in genres] if genres else None,
+        },
     )
     rows = result.mappings().all()
     has_more = len(rows) > limit

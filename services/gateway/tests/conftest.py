@@ -131,7 +131,7 @@ async def _clean_tables(app: FastAPI) -> AsyncIterator[None]:
 
     async with get_sessionmaker()() as session:
         await session.execute(
-            text("TRUNCATE users, events, event_artists, follows, alerts_sent CASCADE")
+            text("TRUNCATE users, events, event_artists, follows, alerts_sent, dismissals CASCADE")
         )
         await session.execute(
             text("DELETE FROM venues WHERE name NOT IN :names").bindparams(

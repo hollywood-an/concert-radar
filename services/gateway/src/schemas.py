@@ -1,6 +1,6 @@
 """Pydantic request and response schemas for the gateway API."""
 
-from datetime import datetime
+from datetime import datetime, time
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -27,7 +27,21 @@ class UserOut(BaseModel):
     display_name: str | None
     home_location: Location | None
     travel_radius_m: int
+    alert_email: bool = True
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
     created_at: datetime
+
+
+class UserUpdate(BaseModel):
+    """Body of PATCH /me; only fields present in the request are updated."""
+
+    display_name: str | None = None
+    home_location: Location | None = None
+    travel_radius_m: int | None = Field(default=None, ge=1000, le=500_000)
+    alert_email: bool | None = None
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
 
 
 class DevAuthResponse(BaseModel):
@@ -66,10 +80,13 @@ class FeedItem(BaseModel):
     image_url: str | None
     venue_name: str
     venue_city: str | None
+    venue_lat: float
+    venue_lon: float
     distance_m: float
     artist_id: UUID
     artist_name: str
     artist_image_url: str | None
+    artist_genres: list[str]
     score: float
 
 
