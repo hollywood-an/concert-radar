@@ -51,6 +51,20 @@ class DevAuthResponse(BaseModel):
     user: UserOut
 
 
+class SpotifyAuthResponse(BaseModel):
+    """Response of POST /auth/spotify: where to send the browser."""
+
+    authorize_url: str
+
+
+class SpotifyCallbackResponse(BaseModel):
+    """Response of GET /auth/spotify/callback: a session plus the import outcome."""
+
+    token: str
+    user: UserOut
+    imported_artists: int
+
+
 class ArtistSummary(BaseModel):
     """An artist as returned by search and follow endpoints, with follow state."""
 

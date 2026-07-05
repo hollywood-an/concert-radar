@@ -15,6 +15,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://cr:cr_dev@localhost:5433/concertradar"
     kafka_bootstrap_servers: str = "localhost:19092"
+    spotify_client_id: str = ""
+    spotify_client_secret: str = ""
+    spotify_redirect_uri: str = "http://localhost:3000/api/auth/spotify/callback"
     jwt_secret: str = "dev-secret-change-in-prod"
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 72

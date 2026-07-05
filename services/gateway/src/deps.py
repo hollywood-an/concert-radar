@@ -69,5 +69,19 @@ async def get_current_user(
     return user
 
 
+async def get_optional_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> User | None:
+    """Resolve the authenticated user when a valid Bearer JWT is present, else None."""
+    if credentials is None:
+        return None
+    try:
+        return await get_current_user(credentials, session)
+    except HTTPException:
+        return None
+
+
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
