@@ -21,6 +21,14 @@ EVENT_STATUS = ENUM(
     create_type=False,
 )
 
+FOLLOW_SOURCE = ENUM(
+    "manual",
+    "spotify_import",
+    "inferred",
+    name="follow_source",
+    create_type=False,
+)
+
 
 class Base(DeclarativeBase):
     """Declarative base mapping datetime annotations to timestamptz columns."""
@@ -98,6 +106,17 @@ class EventArtist(Base):
     billing: Mapped[int]
 
     artist: Mapped[Artist] = relationship()
+
+
+class Follow(Base):
+    """Row in the follows table."""
+
+    __tablename__ = "follows"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    artist_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("artists.id"), primary_key=True)
+    source: Mapped[str] = mapped_column(FOLLOW_SOURCE)
+    created_at: Mapped[datetime]
 
 
 class User(Base):

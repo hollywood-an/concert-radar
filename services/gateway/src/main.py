@@ -8,7 +8,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from src.deps import get_sessionmaker
-from src.routes import auth, events, feed
+from src.routes import artists, auth, events, feed, follows
 from src.telemetry import configure_telemetry
 
 configure_telemetry("gateway")
@@ -25,6 +25,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(feed.router)
 app.include_router(events.router)
+app.include_router(artists.router)
+app.include_router(follows.router)
 
 
 @app.get("/healthz")

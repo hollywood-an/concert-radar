@@ -37,6 +37,22 @@ class DevAuthResponse(BaseModel):
     user: UserOut
 
 
+class ArtistSummary(BaseModel):
+    """An artist as returned by search and follow endpoints, with follow state."""
+
+    id: UUID
+    name: str
+    image_url: str | None
+    genres: list[str]
+    followed: bool
+
+
+class FollowRequest(BaseModel):
+    """Body of POST /follows."""
+
+    artist_id: UUID
+
+
 class FeedItem(BaseModel):
     """One ranked event in the user's feed."""
 
