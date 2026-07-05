@@ -1,0 +1,50 @@
+[project]
+name = "enricher"
+version = "0.1.0"
+description = "Kafka consumer that resolves artists via MusicBrainz/Spotify and computes embeddings."
+requires-python = ">=3.12"
+dependencies = [
+    "aiokafka>=0.11",
+    "asyncpg>=0.29",
+    "httpx>=0.27",
+    "opentelemetry-api>=1.25",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.25",
+    "opentelemetry-sdk>=1.25",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sentence-transformers>=3.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "structlog>=24.1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.10",
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "testcontainers>=4.7",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["aiokafka.*", "asyncpg", "sentence_transformers.*", "testcontainers.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
