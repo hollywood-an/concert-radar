@@ -13,5 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(_REPO_ENV_FILE, Path(".env")), extra="ignore")
 
     ticketmaster_api_key: str = ""
-    ticketmaster_dma_id: int = 249
+    # Ticketmaster DMA 259 is the Columbus OH market. (The spec says 249, but that
+    # is Chicago in Ticketmaster's DMA scheme — verified against the live API.)
+    ticketmaster_dma_id: int = 259
     database_url: str = "postgresql+asyncpg://cr:cr_dev@localhost:5433/concertradar"
