@@ -28,6 +28,7 @@ dev = [
     "mypy>=1.13",
     "ruff>=0.8",
     "types-python-jose>=3.3",
+    "websockets>=16.0",
 ]
 
 [tool.uv]

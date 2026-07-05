@@ -12,10 +12,9 @@ from src.schemas import FeedItem, FeedPage
 
 router = APIRouter(tags=["feed"])
 
-# Filter params are always bound; a NULL value disables that filter. Genres are
-# lowercased on both sides so 'Rock' from Ticketmaster matches a 'rock' checkbox.
-_FEED_SQL = text(
-    """
+# The visible-feed-item base is shared with the WebSocket push (src/ws.py), which
+# appends an event filter instead of the filter/order/limit tail below.
+FEED_ITEM_BASE = """
     SELECT
         e.id AS event_id,
         e.title,
@@ -46,6 +45,13 @@ _FEED_SQL = text(
       AND NOT EXISTS (
           SELECT 1 FROM dismissals d WHERE d.user_id = u.id AND d.event_id = e.id
       )
+"""
+
+# Filter params are always bound; a NULL value disables that filter. Genres are
+# lowercased on both sides so 'Rock' from Ticketmaster matches a 'rock' checkbox.
+_FEED_SQL = text(
+    FEED_ITEM_BASE
+    + """
       AND (CAST(:date_from AS timestamptz) IS NULL OR e.starts_at >= :date_from)
       AND (CAST(:date_to AS timestamptz) IS NULL OR e.starts_at <= :date_to)
       AND (CAST(:max_distance_m AS float) IS NULL

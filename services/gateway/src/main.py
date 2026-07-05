@@ -1,5 +1,7 @@
 """FastAPI application entrypoint for the Concert Radar gateway."""
 
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,6 +12,7 @@ from fastapi.responses import JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
+from src import ws
 from src.deps import get_sessionmaker
 from src.kafka import get_taste_publisher
 from src.routes import artists, auth, events, feed, follows, users
@@ -21,8 +24,12 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Flush the Kafka producer on shutdown."""
+    """Run the WebSocket push loop for the app's lifetime; flush Kafka on shutdown."""
+    push_task = asyncio.create_task(ws.matches_push_loop())
     yield
+    push_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await push_task
     await get_taste_publisher().stop()
 
 
@@ -40,6 +47,7 @@ app.include_router(events.router)
 app.include_router(artists.router)
 app.include_router(follows.router)
 app.include_router(users.router)
+app.include_router(ws.router)
 
 
 @app.get("/healthz")
