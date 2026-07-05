@@ -1,7 +1,10 @@
-.PHONY: dev infra migrate seed test lint
+.PHONY: dev infra topics migrate seed test lint
 
 infra:
 	docker compose up -d
+
+topics:
+	infra/redpanda/create-topics.sh
 
 migrate:
 	@for f in db/migrations/*.sql; do \
@@ -19,6 +22,9 @@ dev-gateway:
 dev-scraper:
 	cd services/scraper-ticketmaster && uv run python -m src.main
 
+dev-deduper:
+	cd services/deduper && uv run python -m src.main
+
 dev-enricher:
 	cd services/enricher && uv run python -m src.main
 
@@ -34,6 +40,7 @@ dev-web:
 dev: infra
 	@echo "Starting all services..."
 	$(MAKE) dev-gateway &
+	$(MAKE) dev-deduper &
 	$(MAKE) dev-enricher &
 	$(MAKE) dev-matcher &
 	$(MAKE) dev-notifier &
@@ -43,6 +50,7 @@ dev: infra
 test:
 	cd services/gateway && uv run pytest
 	cd services/scraper-ticketmaster && uv run pytest
+	cd services/deduper && uv run pytest
 	cd services/enricher && uv run pytest
 	cd services/matcher && uv run pytest
 	cd services/notifier && uv run pytest
