@@ -4,21 +4,15 @@ import { useEffect, useRef, useState } from "react";
 
 import FollowButton from "@/components/FollowButton";
 import { searchArtists } from "@/lib/api";
+import { toggleFollow } from "@/store/followsSlice";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { ArtistSummary } from "@/types";
 
-interface ArtistSearchBarProps {
-  token: string;
-  followedIds: Set<string>;
-  pendingIds: Set<string>;
-  onToggleFollow: (artistId: string, followed: boolean) => void;
-}
-
-export default function ArtistSearchBar({
-  token,
-  followedIds,
-  pendingIds,
-  onToggleFollow,
-}: ArtistSearchBarProps) {
+export default function ArtistSearchBar() {
+  const dispatch = useAppDispatch();
+  const token = useAppSelector((state) => state.auth.token);
+  const followedIds = useAppSelector((state) => state.follows.artistIds);
+  const pendingIds = useAppSelector((state) => state.follows.pendingToggles);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ArtistSummary[]>([]);
   const [open, setOpen] = useState(false);
@@ -27,7 +21,7 @@ export default function ArtistSearchBar({
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed === "") {
+    if (trimmed === "" || token === null) {
       setResults([]);
       setOpen(false);
       setSearching(false);
@@ -72,7 +66,7 @@ export default function ArtistSearchBar({
         <span className="absolute right-4 top-2.5 text-sm text-slate-400">searching…</span>
       )}
       {open && (
-        <ul className="absolute z-10 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+        <ul className="absolute z-20 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {results.length === 0 ? (
             <li className="px-4 py-3 text-sm text-slate-500">No artists found.</li>
           ) : (
@@ -90,9 +84,9 @@ export default function ArtistSearchBar({
                   )}
                 </div>
                 <FollowButton
-                  followed={followedIds.has(artist.id)}
-                  pending={pendingIds.has(artist.id)}
-                  onToggle={() => onToggleFollow(artist.id, followedIds.has(artist.id))}
+                  followed={followedIds.includes(artist.id)}
+                  pending={pendingIds.includes(artist.id)}
+                  onToggle={() => void dispatch(toggleFollow(artist.id))}
                 />
               </li>
             ))
