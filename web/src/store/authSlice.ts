@@ -38,7 +38,14 @@ export const loadSession = createAsyncThunk("auth/loadSession", async () => {
   if (token === null || stored === null) {
     return null;
   }
-  return { token, user: JSON.parse(stored) as User };
+  try {
+    // Refresh the profile so cached sessions pick up fields added since they logged in.
+    const user = await getMe(token);
+    persist(token, user);
+    return { token, user };
+  } catch {
+    return { token, user: JSON.parse(stored) as User };
+  }
 });
 
 const authSlice = createSlice({

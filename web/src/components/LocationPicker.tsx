@@ -45,6 +45,8 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
         }}
         mapStyle={OSM_STYLE}
         onClick={handleClick}
+        // Guard against a stale container-size read when the map mounts mid-hydration.
+        onLoad={(event) => event.target.resize()}
         style={{ width: "100%", height: "100%" }}
       >
         {value && (

@@ -46,7 +46,7 @@ function SettingsForm() {
     if (user !== null) {
       setLocation(user.home_location);
       setRadiusMiles(Math.round(user.travel_radius_m / MILES));
-      setEmailAlerts(user.alert_email);
+      setEmailAlerts(user.alert_email ?? true);
       setQuietStart(user.quiet_hours_start?.slice(0, 5) ?? "");
       setQuietEnd(user.quiet_hours_end?.slice(0, 5) ?? "");
       dispatch(prefsLoaded(user));

@@ -88,6 +88,8 @@ export default function EventMap({ items, height = "70vh" }: EventMapProps) {
         mapStyle={OSM_STYLE}
         interactiveLayerIds={["clusters", "event-point"]}
         onClick={handleClick}
+        // Guard against a stale container-size read when the map mounts mid-hydration.
+        onLoad={(event) => event.target.resize()}
         style={{ width: "100%", height: "100%" }}
       >
         <Source
