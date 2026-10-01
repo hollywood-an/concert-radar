@@ -14,4 +14,3 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://cr:cr_dev@localhost:5433/concertradar"
     kafka_bootstrap_servers: str = "localhost:19092"
-    feed_refresh_interval_seconds: float = 300.0

@@ -44,7 +44,7 @@ async def test_new_show_and_follow_match_but_rescrape_does_not(
     finally:
         await producer.stop()
 
-    processed = await run(stop_after=3, refresh_interval=0)
+    processed = await run(stop_after=3)
     assert processed == 3
 
     consumer = AIOKafkaConsumer(
