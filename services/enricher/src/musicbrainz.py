@@ -12,6 +12,7 @@ _BASE_URL = "https://musicbrainz.org/ws/2"
 # MusicBrainz requires a contactable User-Agent and one request per second per client.
 _USER_AGENT = "ConcertRadar/0.1 (https://github.com/hollywood-an/concert-radar)"
 _MAX_TAGS = 6
+MAX_ATTEMPTS = 4
 
 
 class MBArtist(BaseModel):
@@ -30,6 +31,7 @@ class MusicBrainzClient:
         self,
         transport: httpx.AsyncBaseTransport | None = None,
         min_interval: float = 1.0,
+        retry_delay: float = 1.0,
     ) -> None:
         self._client = httpx.AsyncClient(
             base_url=_BASE_URL,
@@ -38,6 +40,7 @@ class MusicBrainzClient:
             timeout=15.0,
         )
         self._min_interval = min_interval
+        self._retry_delay = retry_delay
         self._lock = asyncio.Lock()
         self._last_request = 0.0
 
@@ -54,15 +57,26 @@ class MusicBrainzClient:
                 await asyncio.sleep(wait)
             self._last_request = loop.time()
 
+    async def _search(self, params: dict[str, str | int]) -> httpx.Response:
+        """GET /artist, retrying with exponential backoff while MusicBrainz answers 503."""
+        # MusicBrainz answers 503 both when it is overloaded and when a client exceeds the
+        # rate limit; both clear within seconds, so one 503 must not crash the consumer.
+        delay = self._retry_delay
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            await self._throttle()
+            response = await self._client.get("/artist", params=params)
+            if response.status_code != httpx.codes.SERVICE_UNAVAILABLE or attempt == MAX_ATTEMPTS:
+                response.raise_for_status()
+                return response
+            log.warning("musicbrainz unavailable, retrying", attempt=attempt, delay=delay)
+            await asyncio.sleep(delay)
+            delay *= 2
+        raise AssertionError("unreachable: retry loop always returns or raises")
+
     async def search_artist(self, name: str) -> MBArtist | None:
         """Return the top search result when its score exceeds 70, else None."""
-        await self._throttle()
         escaped = name.replace('"', '\\"')
-        response = await self._client.get(
-            "/artist",
-            params={"query": f'artist:"{escaped}"', "fmt": "json", "limit": 5},
-        )
-        response.raise_for_status()
+        response = await self._search({"query": f'artist:"{escaped}"', "fmt": "json", "limit": 5})
         artists = response.json().get("artists") or []
         if not artists:
             log.info("musicbrainz: no results", artist=name)

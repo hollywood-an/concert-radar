@@ -2,8 +2,25 @@
 
 import asyncio
 
-from src.musicbrainz import MusicBrainzClient
+import httpx
+import pytest
+
+from src.musicbrainz import MAX_ATTEMPTS, MusicBrainzClient
 from tests.conftest import mb_artist_json, mb_transport
+
+
+def _status_sequence_transport(
+    statuses: list[int], seen: list[httpx.Request]
+) -> httpx.MockTransport:
+    """Answer each request with the next status; a 200 carries a Wet Leg match."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        status = statuses[len(seen) - 1]
+        body = mb_artist_json("mb-wetleg", "Wet Leg") if status == 200 else {"error": "busy"}
+        return httpx.Response(status, json=body)
+
+    return httpx.MockTransport(handler)
 
 
 async def test_accepts_top_result_above_threshold() -> None:
@@ -58,3 +75,50 @@ async def test_rate_limit_spaces_requests() -> None:
     finally:
         await client.aclose()
     assert elapsed >= 0.3
+
+
+async def test_retries_unavailable_then_succeeds() -> None:
+    """503s (MusicBrainz overloaded or rate limiting) are retried until the lookup succeeds."""
+    seen: list[httpx.Request] = []
+    client = MusicBrainzClient(
+        transport=_status_sequence_transport([503, 503, 200], seen),
+        min_interval=0.0,
+        retry_delay=0.01,
+    )
+    try:
+        artist = await client.search_artist("Wet Leg")
+    finally:
+        await client.aclose()
+    assert artist is not None
+    assert artist.mbid == "mb-wetleg"
+    assert len(seen) == 3
+
+
+async def test_persistent_unavailability_raises() -> None:
+    """503 on every attempt surfaces an HTTPStatusError after the retry budget."""
+    seen: list[httpx.Request] = []
+    client = MusicBrainzClient(
+        transport=_status_sequence_transport([503] * MAX_ATTEMPTS, seen),
+        min_interval=0.0,
+        retry_delay=0.01,
+    )
+    try:
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.search_artist("Wet Leg")
+    finally:
+        await client.aclose()
+    assert len(seen) == MAX_ATTEMPTS
+
+
+async def test_other_errors_are_not_retried() -> None:
+    """A non-503 error fails on the first attempt."""
+    seen: list[httpx.Request] = []
+    client = MusicBrainzClient(
+        transport=_status_sequence_transport([400], seen), min_interval=0.0, retry_delay=0.01
+    )
+    try:
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.search_artist("Wet Leg")
+    finally:
+        await client.aclose()
+    assert len(seen) == 1
