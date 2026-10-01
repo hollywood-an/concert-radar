@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-import { devLogin, getMe } from "@/lib/api";
+import { ApiError, devLogin, getMe } from "@/lib/api";
 import type { User } from "@/types";
 
 const TOKEN_KEY = "cr_token";
@@ -17,6 +17,11 @@ const initialState: AuthState = { user: null, token: null, status: "idle" };
 function persist(token: string, user: User): void {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+function clearSession(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 }
 
 export const login = createAsyncThunk("auth/login", async (email: string) => {
@@ -43,7 +48,14 @@ export const loadSession = createAsyncThunk("auth/loadSession", async () => {
     const user = await getMe(token);
     persist(token, user);
     return { token, user };
-  } catch {
+  } catch (error: unknown) {
+    // A rejected token (expired after JWT_EXPIRY_HOURS, or signed with another secret)
+    // can never succeed, so drop it and show the login screen. Any other failure, such as
+    // the gateway being down, keeps the cached session so the app recovers on its own.
+    if (error instanceof ApiError && error.status === 401) {
+      clearSession();
+      return null;
+    }
     return { token, user: JSON.parse(stored) as User };
   }
 });
@@ -53,8 +65,7 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     loggedOut(state) {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
+      clearSession();
       state.user = null;
       state.token = null;
       state.status = "idle";
