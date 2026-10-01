@@ -1,6 +1,6 @@
 """Pydantic request and response schemas for the gateway API."""
 
-from datetime import datetime, time
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -28,8 +28,6 @@ class UserOut(BaseModel):
     home_location: Location | None
     travel_radius_m: int
     alert_email: bool = True
-    quiet_hours_start: time | None = None
-    quiet_hours_end: time | None = None
     created_at: datetime
 
 
@@ -40,8 +38,6 @@ class UserUpdate(BaseModel):
     home_location: Location | None = None
     travel_radius_m: int | None = Field(default=None, ge=1000, le=500_000)
     alert_email: bool | None = None
-    quiet_hours_start: time | None = None
-    quiet_hours_end: time | None = None
 
 
 class DevAuthResponse(BaseModel):

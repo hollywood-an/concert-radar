@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models mirroring the Concert Radar database schema."""
 
 import uuid
-from datetime import datetime, time
+from datetime import datetime
 from typing import Any
 
 from geoalchemy2 import Geography, WKBElement
@@ -136,7 +136,5 @@ class User(Base):
     travel_radius_m: Mapped[int]
     taste_embedding: Mapped[Any] = mapped_column(Vector(384), nullable=True)
     alert_email: Mapped[bool]
-    quiet_hours_start: Mapped[time | None]
-    quiet_hours_end: Mapped[time | None]
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]

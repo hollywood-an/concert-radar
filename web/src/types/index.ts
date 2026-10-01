@@ -12,8 +12,6 @@ export interface User {
   home_location: Location | null;
   travel_radius_m: number;
   alert_email: boolean;
-  quiet_hours_start: string | null;
-  quiet_hours_end: string | null;
   created_at: string;
 }
 
@@ -27,8 +25,6 @@ export interface UserUpdate {
   home_location?: Location | null;
   travel_radius_m?: number;
   alert_email?: boolean;
-  quiet_hours_start?: string | null;
-  quiet_hours_end?: string | null;
 }
 
 export interface FeedItem {

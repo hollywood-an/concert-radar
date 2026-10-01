@@ -1,6 +1,5 @@
 """Core notification logic: dedup, preference checks, and the (logged) email send."""
 
-from datetime import UTC, datetime, time
 from enum import StrEnum
 
 import structlog
@@ -13,9 +12,7 @@ from src.schemas import MatchProposed
 
 log = structlog.get_logger()
 
-_USER_PREFS = text(
-    "SELECT email, alert_email, quiet_hours_start, quiet_hours_end FROM users WHERE id = :id"
-)
+_USER_PREFS = text("SELECT email, alert_email FROM users WHERE id = :id")
 
 _EVENT_DETAILS = text(
     """
@@ -35,17 +32,7 @@ class Outcome(StrEnum):
     SENT = "sent"
     DUPLICATE = "duplicate"
     OPTED_OUT = "opted_out"
-    QUIET_HOURS = "quiet_hours"
     MISSING = "missing"
-
-
-def in_quiet_hours(now: time, start: time | None, end: time | None) -> bool:
-    """Whether `now` falls inside the user's quiet window, including windows past midnight."""
-    if start is None or end is None:
-        return False
-    if start <= end:
-        return start <= now < end
-    return now >= start or now < end
 
 
 async def process_match(engine: AsyncEngine, match: MatchProposed) -> Outcome:
@@ -64,8 +51,6 @@ async def process_match(engine: AsyncEngine, match: MatchProposed) -> Outcome:
             return Outcome.DUPLICATE
         if not user.alert_email:
             return Outcome.OPTED_OUT
-        if in_quiet_hours(datetime.now(UTC).time(), user.quiet_hours_start, user.quiet_hours_end):
-            return Outcome.QUIET_HOURS
 
         send_email(
             to=user.email,

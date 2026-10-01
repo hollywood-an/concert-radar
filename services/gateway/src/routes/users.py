@@ -15,8 +15,7 @@ logger = structlog.get_logger()
 
 _SELECT_ME = text(
     """
-    SELECT id, email, display_name, travel_radius_m, alert_email,
-           quiet_hours_start, quiet_hours_end, created_at,
+    SELECT id, email, display_name, travel_radius_m, alert_email, created_at,
            ST_Y(home_location::geometry) AS lat,
            ST_X(home_location::geometry) AS lon
     FROM users
@@ -30,8 +29,6 @@ _SET_FRAGMENTS = {
     "home_location": ("home_location = ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography"),
     "travel_radius_m": "travel_radius_m = :travel_radius_m",
     "alert_email": "alert_email = :alert_email",
-    "quiet_hours_start": "quiet_hours_start = :quiet_hours_start",
-    "quiet_hours_end": "quiet_hours_end = :quiet_hours_end",
 }
 
 
@@ -46,8 +43,6 @@ async def fetch_me(session: AsyncSession, user_id: UUID) -> UserOut:
         home_location=location,
         travel_radius_m=row["travel_radius_m"],
         alert_email=row["alert_email"],
-        quiet_hours_start=row["quiet_hours_start"],
-        quiet_hours_end=row["quiet_hours_end"],
         created_at=row["created_at"],
     )
 

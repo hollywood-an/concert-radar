@@ -24,8 +24,6 @@ function SettingsForm() {
   const [location, setLocation] = useState<Location | null>(null);
   const [radiusMiles, setRadiusMiles] = useState(50);
   const [emailAlerts, setEmailAlerts] = useState(true);
-  const [quietStart, setQuietStart] = useState("");
-  const [quietEnd, setQuietEnd] = useState("");
   const [saved, setSaved] = useState(false);
   const [importedBanner, setImportedBanner] = useState<number | null>(null);
 
@@ -47,8 +45,6 @@ function SettingsForm() {
       setLocation(user.home_location);
       setRadiusMiles(Math.round(user.travel_radius_m / MILES));
       setEmailAlerts(user.alert_email ?? true);
-      setQuietStart(user.quiet_hours_start?.slice(0, 5) ?? "");
-      setQuietEnd(user.quiet_hours_end?.slice(0, 5) ?? "");
       dispatch(prefsLoaded(user));
     }
   }, [user, dispatch]);
@@ -68,13 +64,7 @@ function SettingsForm() {
       travel_radius_m: Math.round(radiusMiles * MILES),
     });
     dispatch(userUpdated(updated));
-    await dispatch(
-      savePrefs({
-        email: emailAlerts,
-        quietHoursStart: quietStart === "" ? null : `${quietStart}:00`,
-        quietHoursEnd: quietEnd === "" ? null : `${quietEnd}:00`,
-      }),
-    );
+    await dispatch(savePrefs({ email: emailAlerts }));
     setSaved(true);
   };
 
@@ -130,34 +120,6 @@ function SettingsForm() {
           />
           Email me when a matching show is announced
         </label>
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-          <span>Quiet hours</span>
-          <input
-            type="time"
-            value={quietStart}
-            onChange={(event) => setQuietStart(event.target.value)}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-          />
-          <span className="text-slate-400">–</span>
-          <input
-            type="time"
-            value={quietEnd}
-            onChange={(event) => setQuietEnd(event.target.value)}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-          />
-          {(quietStart !== "" || quietEnd !== "") && (
-            <button
-              type="button"
-              onClick={() => {
-                setQuietStart("");
-                setQuietEnd("");
-              }}
-              className="text-xs font-medium text-indigo-600 hover:underline"
-            >
-              clear
-            </button>
-          )}
-        </div>
       </section>
 
       <section className="mt-8">

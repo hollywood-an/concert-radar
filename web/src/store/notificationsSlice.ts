@@ -7,8 +7,6 @@ import type { User } from "@/types";
 
 export interface NotificationPrefs {
   email: boolean;
-  quietHoursStart: string | null;
-  quietHoursEnd: string | null;
 }
 
 export interface NotificationsState {
@@ -16,7 +14,7 @@ export interface NotificationsState {
 }
 
 const initialState: NotificationsState = {
-  prefs: { email: true, quietHoursStart: null, quietHoursEnd: null },
+  prefs: { email: true },
 };
 
 export const savePrefs = createAsyncThunk<User, NotificationPrefs, { state: RootState }>(
@@ -26,22 +24,14 @@ export const savePrefs = createAsyncThunk<User, NotificationPrefs, { state: Root
     if (auth.token === null) {
       throw new Error("not authenticated");
     }
-    const user = await patchMe(auth.token, {
-      alert_email: prefs.email,
-      quiet_hours_start: prefs.quietHoursStart,
-      quiet_hours_end: prefs.quietHoursEnd,
-    });
+    const user = await patchMe(auth.token, { alert_email: prefs.email });
     thunkApi.dispatch(userUpdated(user));
     return user;
   },
 );
 
 function prefsFromUser(user: User): NotificationPrefs {
-  return {
-    email: user.alert_email,
-    quietHoursStart: user.quiet_hours_start,
-    quietHoursEnd: user.quiet_hours_end,
-  };
+  return { email: user.alert_email };
 }
 
 const notificationsSlice = createSlice({

@@ -23,7 +23,7 @@ async def test_get_me_returns_dev_defaults(client: httpx.AsyncClient) -> None:
     assert me["email"] == "me@example.com"
     assert me["travel_radius_m"] == 80467
     assert me["alert_email"] is True
-    assert me["quiet_hours_start"] is None
+    assert "quiet_hours_start" not in me
     assert round(me["home_location"]["lat"], 4) == 39.9612
     assert round(me["home_location"]["lon"], 4) == -82.9988
 
@@ -36,8 +36,7 @@ async def test_patch_updates_only_provided_fields(client: httpx.AsyncClient) -> 
         json={
             "home_location": {"lat": 40.1, "lon": -83.2},
             "travel_radius_m": 25000,
-            "quiet_hours_start": "22:00:00",
-            "quiet_hours_end": "07:00:00",
+            "display_name": "Patched",
         },
         headers=headers,
     )
@@ -46,30 +45,14 @@ async def test_patch_updates_only_provided_fields(client: httpx.AsyncClient) -> 
     assert round(me["home_location"]["lat"], 4) == 40.1
     assert round(me["home_location"]["lon"], 4) == -83.2
     assert me["travel_radius_m"] == 25000
-    assert me["quiet_hours_start"] == "22:00:00"
+    assert me["display_name"] == "Patched"
     assert me["alert_email"] is True
 
     second = await client.patch("/me", json={"alert_email": False}, headers=headers)
     me = second.json()
     assert me["alert_email"] is False
     assert me["travel_radius_m"] == 25000
-    assert me["quiet_hours_start"] == "22:00:00"
-
-
-async def test_patch_can_clear_quiet_hours(client: httpx.AsyncClient) -> None:
-    """Sending explicit nulls clears the quiet-hours window."""
-    headers = await auth_headers(client, "clear@example.com")
-    await client.patch(
-        "/me",
-        json={"quiet_hours_start": "22:00:00", "quiet_hours_end": "07:00:00"},
-        headers=headers,
-    )
-    response = await client.patch(
-        "/me", json={"quiet_hours_start": None, "quiet_hours_end": None}, headers=headers
-    )
-    me = response.json()
-    assert me["quiet_hours_start"] is None
-    assert me["quiet_hours_end"] is None
+    assert me["display_name"] == "Patched"
 
 
 async def test_patch_rejects_absurd_radius(client: httpx.AsyncClient) -> None:

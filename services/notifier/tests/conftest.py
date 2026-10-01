@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator, Iterator
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -107,28 +107,16 @@ def _tracer_provider() -> None:
     trace.set_tracer_provider(TracerProvider())
 
 
-async def create_user(
-    engine: AsyncEngine,
-    email: str,
-    *,
-    alert_email: bool = True,
-    quiet_hours_start: time | None = None,
-    quiet_hours_end: time | None = None,
-) -> UUID:
-    """Insert a user with the given alert preferences and return its id."""
+async def create_user(engine: AsyncEngine, email: str, *, alert_email: bool = True) -> UUID:
+    """Insert a user with the given alert preference and return its id."""
     async with engine.begin() as conn:
         user_id = (
             await conn.execute(
                 text(
-                    "INSERT INTO users (email, alert_email, quiet_hours_start, quiet_hours_end)"
-                    " VALUES (:email, :alert_email, :start, :end) RETURNING id"
+                    "INSERT INTO users (email, alert_email)"
+                    " VALUES (:email, :alert_email) RETURNING id"
                 ),
-                {
-                    "email": email,
-                    "alert_email": alert_email,
-                    "start": quiet_hours_start,
-                    "end": quiet_hours_end,
-                },
+                {"email": email, "alert_email": alert_email},
             )
         ).scalar_one()
     return UUID(str(user_id))
