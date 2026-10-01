@@ -15,6 +15,7 @@ dependencies = [
     "sentence-transformers>=3.0",
     "sqlalchemy[asyncio]>=2.0",
     "structlog>=24.1",
+    "torch>=2.12",
 ]
 
 [dependency-groups]
@@ -28,6 +29,17 @@ dev = [
 
 [tool.uv]
 package = false
+
+# torch comes from PyTorch's CPU-only index: the default PyPI build for Linux pulls
+# ~2.5 GB of CUDA libraries the enricher never uses (it embeds short genre strings).
+# torch is listed as a direct dependency only so this source applies to it.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.ruff]
 line-length = 100
