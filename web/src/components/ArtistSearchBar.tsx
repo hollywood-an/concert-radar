@@ -86,7 +86,14 @@ export default function ArtistSearchBar() {
                 <FollowButton
                   followed={followedIds.includes(artist.id)}
                   pending={pendingIds.includes(artist.id)}
-                  onToggle={() => void dispatch(toggleFollow(artist.id))}
+                  onToggle={() =>
+                    void dispatch(
+                      toggleFollow({
+                        artistId: artist.id,
+                        followed: followedIds.includes(artist.id),
+                      }),
+                    )
+                  }
                 />
               </li>
             ))

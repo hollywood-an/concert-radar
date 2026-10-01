@@ -89,7 +89,9 @@ export default function EventCard({ item, fresh = false }: EventCardProps) {
             <FollowButton
               followed={followed}
               pending={pending}
-              onToggle={() => void dispatch(toggleFollow(item.artist_id))}
+              onToggle={() =>
+                void dispatch(toggleFollow({ artistId: item.artist_id, followed }))
+              }
             />
             <button
               type="button"

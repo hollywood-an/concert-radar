@@ -23,16 +23,30 @@ export const loadFollows = createAsyncThunk<string[], void, { state: RootState }
   },
 );
 
+export interface ToggleFollowArgs {
+  artistId: string;
+  followed: boolean;
+}
+
+function setFollowed(state: FollowsState, artistId: string, followed: boolean): void {
+  state.artistIds = state.artistIds.filter((id) => id !== artistId);
+  if (followed) {
+    state.artistIds.push(artistId);
+  }
+}
+
 // Optimistic toggle per the spec: flip immediately, revert on failure, then re-rank.
-export const toggleFollow = createAsyncThunk<void, string, { state: RootState }>(
+// The caller passes the pre-click `followed` state because the pending reducer flips
+// artistIds before this payload creator runs, so reading the store here would see the
+// already-flipped value and send the opposite request.
+export const toggleFollow = createAsyncThunk<void, ToggleFollowArgs, { state: RootState }>(
   "follows/toggle",
-  async (artistId, thunkApi) => {
-    const { auth, follows } = thunkApi.getState();
+  async ({ artistId, followed }, thunkApi) => {
+    const { auth } = thunkApi.getState();
     if (auth.token === null) {
       throw new Error("not authenticated");
     }
-    const wasFollowed = follows.artistIds.includes(artistId);
-    if (wasFollowed) {
+    if (followed) {
       await unfollowArtist(auth.token, artistId);
     } else {
       await followArtist(auth.token, artistId);
@@ -55,21 +69,18 @@ const followsSlice = createSlice({
         state.artistIds = action.payload;
       })
       .addCase(toggleFollow.pending, (state, action) => {
-        const artistId = action.meta.arg;
+        const { artistId, followed } = action.meta.arg;
         state.pendingToggles.push(artistId);
-        state.artistIds = state.artistIds.includes(artistId)
-          ? state.artistIds.filter((id) => id !== artistId)
-          : [...state.artistIds, artistId];
+        setFollowed(state, artistId, !followed);
       })
       .addCase(toggleFollow.fulfilled, (state, action) => {
-        state.pendingToggles = state.pendingToggles.filter((id) => id !== action.meta.arg);
+        const { artistId } = action.meta.arg;
+        state.pendingToggles = state.pendingToggles.filter((id) => id !== artistId);
       })
       .addCase(toggleFollow.rejected, (state, action) => {
-        const artistId = action.meta.arg;
+        const { artistId, followed } = action.meta.arg;
         state.pendingToggles = state.pendingToggles.filter((id) => id !== artistId);
-        state.artistIds = state.artistIds.includes(artistId)
-          ? state.artistIds.filter((id) => id !== artistId)
-          : [...state.artistIds, artistId];
+        setFollowed(state, artistId, followed);
       });
   },
 });
