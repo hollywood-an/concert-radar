@@ -1,7 +1,6 @@
 """Long-running consumer: events.enriched + users.taste_updated -> matches.proposed."""
 
 import asyncio
-import contextlib
 
 import structlog
 from aiokafka import AIOKafkaConsumer, ConsumerRecord
@@ -13,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from src.config import Settings
 from src.producer import MatcherProducer
 from src.ranker import matches_for_event, matches_for_followed_artists
-from src.refresh import periodic_refresh
 from src.schemas import EnrichedEvent, TasteUpdated
 from src.telemetry import setup_telemetry
 
@@ -36,14 +34,9 @@ def main() -> None:
         provider.shutdown()
 
 
-async def run(stop_after: int | None = None, refresh_interval: float | None = None) -> int:
-    """Consume both matcher topics until stopped; return the number of messages processed.
-
-    refresh_interval overrides the configured feed-view refresh cadence; 0 disables it.
-    """
+async def run(stop_after: int | None = None) -> int:
+    """Consume both matcher topics until stopped; return the number of messages processed."""
     settings = Settings()
-    if refresh_interval is None:
-        refresh_interval = settings.feed_refresh_interval_seconds
     engine = create_async_engine(settings.database_url)
     consumer = AIOKafkaConsumer(
         EVENTS_ENRICHED_TOPIC,
@@ -56,23 +49,10 @@ async def run(stop_after: int | None = None, refresh_interval: float | None = No
     producer = MatcherProducer(settings.kafka_bootstrap_servers)
     await consumer.start()
     await producer.start()
-    refresh_task = (
-        asyncio.create_task(periodic_refresh(engine, refresh_interval))
-        if refresh_interval > 0
-        else None
-    )
     try:
-        logger.info(
-            "consuming",
-            topics=[EVENTS_ENRICHED_TOPIC, USERS_TASTE_UPDATED_TOPIC],
-            refresh_interval=refresh_interval,
-        )
+        logger.info("consuming", topics=[EVENTS_ENRICHED_TOPIC, USERS_TASTE_UPDATED_TOPIC])
         return await consume_loop(consumer, producer, engine, stop_after)
     finally:
-        if refresh_task is not None:
-            refresh_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await refresh_task
         await consumer.stop()
         await producer.stop()
         await engine.dispose()
