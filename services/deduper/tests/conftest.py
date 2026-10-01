@@ -120,7 +120,7 @@ async def db_engine(database_url: str) -> AsyncIterator[AsyncEngine]:
     """Yield an engine over a database reset to its freshly seeded state."""
     engine = create_async_engine(database_url, poolclass=NullPool)
     async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE event_artists, alerts_sent, events"))
+        await conn.execute(text("TRUNCATE event_artists, alerts_sent, dismissals, events"))
         await conn.execute(
             text("DELETE FROM artists WHERE NOT (name = ANY(:names))"),
             {"names": list(SEED_ARTIST_NAMES)},
