@@ -205,7 +205,7 @@ async def test_taste_updated_published_after_import(
     spotify_enabled: SpotifyOAuthClient,
     kafka_bootstrap: str,
 ) -> None:
-    """The import publishes users.taste_updated for the importing user."""
+    """The import publishes users.taste_updated naming every imported artist."""
     from aiokafka import AIOKafkaConsumer
 
     from src.kafka import USERS_TASTE_UPDATED_TOPIC
@@ -224,13 +224,14 @@ async def test_taste_updated_published_after_import(
         consumer_timeout_ms=10_000,
     )
     await consumer.start()
-    found = False
+    payload = None
     try:
         async for message in consumer:
             if message.key == user_id.encode():
-                found = True
-                assert json.loads(message.value) == {"user_id": user_id}
+                payload = json.loads(message.value)
                 break
     finally:
         await consumer.stop()
-    assert found
+    assert payload is not None
+    assert payload["user_id"] == user_id
+    assert len(set(payload["followed_artist_ids"])) == len(_FOLLOWED)

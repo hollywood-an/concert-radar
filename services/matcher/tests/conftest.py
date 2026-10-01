@@ -150,8 +150,9 @@ async def create_event(
     starts_at: datetime = STARTS_AT,
     status: str = "on_sale",
     external_id: str = "match-0001",
+    openers: Sequence[str] = (),
 ) -> tuple[UUID, UUID, UUID]:
-    """Insert an event at a seeded venue; return (event_id, venue_id, artist_id)."""
+    """Insert an event at a seeded venue; return (event_id, venue_id, headliner_id)."""
     async with engine.begin() as conn:
         venue_id = (
             await conn.execute(
@@ -186,10 +187,29 @@ async def create_event(
             ),
             {"event_id": event_id, "artist_id": artist_id},
         )
+        for billing, opener in enumerate(openers, start=1):
+            await conn.execute(
+                text(
+                    "INSERT INTO event_artists (event_id, artist_id, billing)"
+                    " SELECT :event_id, id, :billing FROM artists WHERE name = :name"
+                ),
+                {"event_id": event_id, "billing": billing, "name": opener},
+            )
     return UUID(str(event_id)), UUID(str(venue_id)), UUID(str(artist_id))
 
 
-def make_enriched(event_id: UUID, venue_id: UUID, artist_ids: Sequence[UUID]) -> EnrichedEvent:
+async def artist_id(engine: AsyncEngine, name: str) -> UUID:
+    """Look up a seeded artist's id by name."""
+    async with engine.connect() as conn:
+        value = (
+            await conn.execute(text("SELECT id FROM artists WHERE name = :name"), {"name": name})
+        ).scalar_one()
+    return UUID(str(value))
+
+
+def make_enriched(
+    event_id: UUID, venue_id: UUID, artist_ids: Sequence[UUID], *, is_new: bool = True
+) -> EnrichedEvent:
     """Build the events.enriched payload the enricher would publish for this event."""
     return EnrichedEvent(
         event_id=event_id,
@@ -199,4 +219,5 @@ def make_enriched(event_id: UUID, venue_id: UUID, artist_ids: Sequence[UUID]) ->
         title="Enriched Show",
         starts_at=STARTS_AT,
         status="on_sale",
+        is_new=is_new,
     )

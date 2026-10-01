@@ -118,6 +118,7 @@ async def handle_message(
                 title=deduped.title,
                 starts_at=deduped.starts_at,
                 status=deduped.status,
+                is_new=deduped.is_new,
             )
         )
         logger.info(

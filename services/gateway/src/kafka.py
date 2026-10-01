@@ -40,8 +40,16 @@ class TasteUpdatedPublisher:
                 self._producer = producer
             return self._producer
 
-    async def publish(self, user_id: UUID) -> None:
-        """Publish that the user's taste embedding changed; log and continue on failure."""
+    async def publish(self, user_id: UUID, followed_artist_ids: list[UUID]) -> None:
+        """Publish that the user's taste changed and which artists were just followed.
+
+        The matcher alerts on the just-followed artists' upcoming shows, so an unfollow
+        publishes an empty list. Logs and continues on failure.
+        """
+        payload = {
+            "user_id": str(user_id),
+            "followed_artist_ids": [str(artist_id) for artist_id in followed_artist_ids],
+        }
         try:
             producer = await self._get_producer()
             with tracer.start_as_current_span(
@@ -52,7 +60,7 @@ class TasteUpdatedPublisher:
                 headers = [(name, value.encode()) for name, value in carrier.items()]
                 await producer.send_and_wait(
                     USERS_TASTE_UPDATED_TOPIC,
-                    json.dumps({"user_id": str(user_id)}).encode(),
+                    json.dumps(payload).encode(),
                     key=str(user_id).encode(),
                     headers=headers,
                 )

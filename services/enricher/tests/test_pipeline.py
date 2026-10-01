@@ -72,3 +72,4 @@ async def test_consume_enrich_publish_roundtrip(
     assert body["event_id"] == str(event_id)
     assert body["artist_ids"] == [str(artist_id)]
     assert body["enriched_artist_ids"] == [str(artist_id)]
+    assert body["is_new"] is True

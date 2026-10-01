@@ -30,3 +30,4 @@ class EnrichedEvent(BaseModel):
     title: str
     starts_at: datetime
     status: str
+    is_new: bool

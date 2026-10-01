@@ -1,9 +1,10 @@
-"""Pipeline test: both consumed topics produce matches on the real broker."""
+"""Pipeline test: new shows and follows produce matches on the real broker; re-scrapes do not."""
 
+import asyncio
 import json
 
 import pytest
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, ConsumerRecord
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from src.main import EVENTS_ENRICHED_TOPIC, USERS_TASTE_UPDATED_TOPIC, run
@@ -11,13 +12,13 @@ from src.producer import MATCHES_PROPOSED_TOPIC
 from tests.conftest import create_event, create_user, make_enriched
 
 
-async def test_both_topics_produce_matches(
+async def test_new_show_and_follow_match_but_rescrape_does_not(
     kafka_bootstrap: str,
     db_engine: AsyncEngine,
     database_url: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An enriched event and a taste update each yield a proposed match for the same pair."""
+    """A newly announced show and a follow each propose the match; a re-scrape proposes none."""
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap)
 
@@ -27,39 +28,41 @@ async def test_both_topics_produce_matches(
     producer = AIOKafkaProducer(bootstrap_servers=kafka_bootstrap)
     await producer.start()
     try:
-        await producer.send_and_wait(
-            EVENTS_ENRICHED_TOPIC,
-            make_enriched(event_id, venue_id, [artist_id]).model_dump_json().encode(),
-            key=str(event_id).encode(),
-        )
+        for is_new in (True, False):
+            await producer.send_and_wait(
+                EVENTS_ENRICHED_TOPIC,
+                make_enriched(event_id, venue_id, [artist_id], is_new=is_new)
+                .model_dump_json()
+                .encode(),
+                key=str(event_id).encode(),
+            )
         await producer.send_and_wait(
             USERS_TASTE_UPDATED_TOPIC,
-            json.dumps({"user_id": str(user_id)}).encode(),
+            json.dumps({"user_id": str(user_id), "followed_artist_ids": [str(artist_id)]}).encode(),
             key=str(user_id).encode(),
         )
     finally:
         await producer.stop()
 
-    processed = await run(stop_after=2, refresh_interval=0)
-    assert processed == 2
+    processed = await run(stop_after=3, refresh_interval=0)
+    assert processed == 3
 
     consumer = AIOKafkaConsumer(
         MATCHES_PROPOSED_TOPIC,
         bootstrap_servers=kafka_bootstrap,
         auto_offset_reset="earliest",
-        consumer_timeout_ms=10_000,
     )
     await consumer.start()
-    messages = []
+    messages: list[ConsumerRecord] = []
     try:
-        async for message in consumer:
-            messages.append(message)
-            if len(messages) == 2:
-                break
+        while len(messages) < 2:
+            messages.append(await asyncio.wait_for(consumer.getone(), timeout=10))
+        # The re-scrape must not have proposed a third match.
+        extra = await consumer.getmany(timeout_ms=3_000)
+        assert not any(extra.values()), "a re-scraped show must not propose a match"
     finally:
         await consumer.stop()
 
-    assert len(messages) == 2
     expected_key = f"{user_id}:{event_id}".encode()
     for message in messages:
         assert message.key == expected_key

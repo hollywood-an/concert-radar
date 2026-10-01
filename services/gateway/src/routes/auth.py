@@ -229,12 +229,14 @@ async def spotify_callback(code: str, state: str, session: DbSession) -> Spotify
     )
 
     followed = await oauth.get_followed_artists(access_token)
+    imported_ids: list[UUID] = []
     for artist in followed:
         artist_id = await _upsert_import_artist(session, artist)
         await session.execute(_INSERT_SPOTIFY_FOLLOW, {"user_id": user_id, "artist_id": artist_id})
+        imported_ids.append(artist_id)
     await session.execute(_RECOMPUTE_TASTE, {"user_id": user_id})
     await session.commit()
-    await get_taste_publisher().publish(user_id)
+    await get_taste_publisher().publish(user_id, imported_ids)
     logger.info(
         "spotify_import_complete",
         user_id=str(user_id),

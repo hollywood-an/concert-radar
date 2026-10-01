@@ -136,8 +136,10 @@ async def test_follow_and_unfollow_publish_taste_updated(
         await consumer.stop()
 
     assert len(mine) == 2, "expected one message for the follow and one for the unfollow"
+    follow, unfollow = (json.loads(message.value) for message in mine)
+    assert follow == {"user_id": user_id, "followed_artist_ids": [artist_id]}
+    assert unfollow == {"user_id": user_id, "followed_artist_ids": []}
     for message in mine:
-        assert json.loads(message.value) == {"user_id": user_id}
         assert "traceparent" in {name for name, _ in message.headers}
 
 

@@ -16,12 +16,14 @@ class EnrichedEvent(BaseModel):
     title: str
     starts_at: datetime
     status: str
+    is_new: bool
 
 
 class TasteUpdated(BaseModel):
     """Payload of users.taste_updated, as published by the gateway."""
 
     user_id: UUID
+    followed_artist_ids: list[UUID]
 
 
 class MatchProposed(BaseModel):

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from src.config import Settings
 from src.producer import MatcherProducer
-from src.ranker import matches_for_event, matches_for_user
+from src.ranker import matches_for_event, matches_for_followed_artists
 from src.refresh import periodic_refresh
 from src.schemas import EnrichedEvent, TasteUpdated
 from src.telemetry import setup_telemetry
@@ -65,10 +65,9 @@ async def run(stop_after: int | None = None, refresh_interval: float | None = No
         logger.info(
             "consuming",
             topics=[EVENTS_ENRICHED_TOPIC, USERS_TASTE_UPDATED_TOPIC],
-            threshold=settings.match_threshold,
             refresh_interval=refresh_interval,
         )
-        return await consume_loop(consumer, producer, engine, settings.match_threshold, stop_after)
+        return await consume_loop(consumer, producer, engine, stop_after)
     finally:
         if refresh_task is not None:
             refresh_task.cancel()
@@ -83,14 +82,13 @@ async def consume_loop(
     consumer: AIOKafkaConsumer,
     producer: MatcherProducer,
     engine: AsyncEngine,
-    threshold: float,
     stop_after: int | None = None,
 ) -> int:
     """Process messages one at a time, committing offsets after each successful handle."""
     processed = 0
     async for message in consumer:
         try:
-            await handle_message(message, producer, engine, threshold)
+            await handle_message(message, producer, engine)
         except ValidationError:
             # A malformed message can never succeed; skip it after logging so the
             # partition does not wedge. Anything else propagates and crashes the
@@ -106,7 +104,7 @@ async def consume_loop(
 
 
 async def handle_message(
-    message: ConsumerRecord, producer: MatcherProducer, engine: AsyncEngine, threshold: float
+    message: ConsumerRecord, producer: MatcherProducer, engine: AsyncEngine
 ) -> None:
     """Match one enriched event or taste update, continuing the producer's trace."""
     context = extract({name: value.decode() for name, value in message.headers})
@@ -115,11 +113,14 @@ async def handle_message(
     ):
         if message.topic == EVENTS_ENRICHED_TOPIC:
             enriched = EnrichedEvent.model_validate_json(message.value)
-            matches = await matches_for_event(engine, enriched.event_id, threshold)
-            subject = {"event_id": str(enriched.event_id)}
+            # Only a newly announced show alerts; re-scrapes of known shows stay quiet.
+            matches = await matches_for_event(engine, enriched.event_id) if enriched.is_new else []
+            subject = {"event_id": str(enriched.event_id), "is_new": enriched.is_new}
         else:
             taste = TasteUpdated.model_validate_json(message.value)
-            matches = await matches_for_user(engine, taste.user_id, threshold)
+            matches = await matches_for_followed_artists(
+                engine, taste.user_id, taste.followed_artist_ids
+            )
             subject = {"user_id": str(taste.user_id)}
         for match in matches:
             await producer.publish_match(match)
