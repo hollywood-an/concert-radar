@@ -1,4 +1,6 @@
-.PHONY: dev infra topics migrate seed test lint
+.PHONY: dev infra topics migrate seed test test-image lint
+
+SERVICES := gateway scraper-ticketmaster deduper enricher matcher notifier
 
 infra:
 	docker compose up -d
@@ -44,16 +46,15 @@ dev: infra
 	$(MAKE) dev-web &
 	wait
 
-test:
-	cd services/gateway && uv run pytest
-	cd services/scraper-ticketmaster && uv run pytest
-	cd services/deduper && uv run pytest
-	cd services/enricher && uv run pytest
-	cd services/matcher && uv run pytest
-	cd services/notifier && uv run pytest
-	cd web && pnpm test
+# Integration tests start this image through testcontainers.
+test-image:
+	docker build -t concert-radar-postgres:latest infra/postgres
+
+test: test-image
+	@for s in $(SERVICES); do (cd services/$$s && uv run pytest -q) || exit 1; done
 
 lint:
-	cd services/gateway && uv run ruff check . && uv run mypy .
-	cd services/scraper-ticketmaster && uv run ruff check . && uv run mypy .
-	cd web && pnpm lint
+	@for s in $(SERVICES); do \
+		(cd services/$$s && uv run ruff check . && uv run ruff format --check . && uv run mypy .) || exit 1; \
+	done
+	cd web && pnpm exec tsc --noEmit && pnpm lint
