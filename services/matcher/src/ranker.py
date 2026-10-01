@@ -70,7 +70,7 @@ async def matches_for_event(engine: AsyncEngine, event_id: UUID) -> list[MatchPr
 async def matches_for_followed_artists(
     engine: AsyncEngine, user_id: UUID, artist_ids: list[UUID]
 ) -> list[MatchProposed]:
-    """Return the user's upcoming in-radius shows featuring any of the just-followed artists."""
+    """Return the user's upcoming in-radius shows featuring any of the given followed artists."""
     if not artist_ids:
         return []
     async with engine.connect() as conn:

@@ -107,16 +107,24 @@ def _tracer_provider() -> None:
     trace.set_tracer_provider(TracerProvider())
 
 
-async def create_user(engine: AsyncEngine, email: str, *, alert_email: bool = True) -> UUID:
-    """Insert a user with the given alert preference and return its id."""
+async def create_user(
+    engine: AsyncEngine,
+    email: str,
+    *,
+    alert_email: bool = True,
+    lon: float = -82.9988,
+    lat: float = 39.9612,
+) -> UUID:
+    """Insert a user homed at the given point (downtown Columbus by default); return its id."""
     async with engine.begin() as conn:
         user_id = (
             await conn.execute(
                 text(
-                    "INSERT INTO users (email, alert_email)"
-                    " VALUES (:email, :alert_email) RETURNING id"
+                    "INSERT INTO users (email, alert_email, home_location) VALUES"
+                    " (:email, :alert_email,"
+                    " ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography) RETURNING id"
                 ),
-                {"email": email, "alert_email": alert_email},
+                {"email": email, "alert_email": alert_email, "lon": lon, "lat": lat},
             )
         ).scalar_one()
     return UUID(str(user_id))

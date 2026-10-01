@@ -69,13 +69,14 @@ async def test_digest_sends_one_email_per_user(db_engine: AsyncEngine) -> None:
 
 
 async def test_alerts_gone_stale_while_waiting_are_dropped(db_engine: AsyncEngine) -> None:
-    """Shows that started, were cancelled or dismissed, and opted-out users get no email."""
+    """Shows that started, were cancelled, dismissed, or left the user's range get no email."""
     cases: dict[str, tuple[UUID, UUID]] = {}
     for name, artist in (
         ("started", "Phoebe Bridgers"),
         ("cancelled", "Turnstile"),
         ("dismissed", "Khruangbin"),
         ("opted-out", "Sylvan Esso"),
+        ("moved-away", "Japanese Breakfast"),
     ):
         user_id = await create_user(db_engine, f"{name}@example.com")
         event_id = await create_event(db_engine, external_id=f"stale-{name}", artist_name=artist)
@@ -97,6 +98,13 @@ async def test_alerts_gone_stale_while_waiting_are_dropped(db_engine: AsyncEngin
         await conn.execute(
             text("UPDATE users SET alert_email = false WHERE id = :u"),
             {"u": cases["opted-out"][0]},
+        )
+        await conn.execute(
+            text(
+                "UPDATE users SET home_location ="
+                " ST_SetSRID(ST_MakePoint(-122.3350, 47.6080), 4326)::geography WHERE id = :u"
+            ),
+            {"u": cases["moved-away"][0]},
         )
 
     with capture_logs() as logs:

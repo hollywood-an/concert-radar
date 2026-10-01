@@ -1,4 +1,4 @@
-"""Kafka producer publishing users.taste_updated after follow changes.
+"""Kafka producer publishing users.taste_updated after follow and home-area changes.
 
 Publishing is best-effort: the follow is already committed to Postgres, so a broker
 outage degrades downstream matching freshness rather than failing the request.
@@ -41,10 +41,11 @@ class TasteUpdatedPublisher:
             return self._producer
 
     async def publish(self, user_id: UUID, followed_artist_ids: list[UUID]) -> None:
-        """Publish that the user's taste changed and which artists were just followed.
+        """Publish which followed artists' upcoming nearby shows to match for the user.
 
-        The matcher alerts on the just-followed artists' upcoming shows, so an unfollow
-        publishes an empty list. Logs and continues on failure.
+        That is the just-followed artist(s) after a follow or Spotify import, every
+        followed artist after a home or radius change, and none after an unfollow.
+        Logs and continues on failure.
         """
         payload = {
             "user_id": str(user_id),

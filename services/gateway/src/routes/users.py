@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.deps import CurrentUser, DbSession
+from src.kafka import get_taste_publisher
 from src.schemas import Location, UserOut, UserUpdate
 
 router = APIRouter(tags=["users"])
@@ -30,6 +31,12 @@ _SET_FRAGMENTS = {
     "travel_radius_m": "travel_radius_m = :travel_radius_m",
     "alert_email": "alert_email = :alert_email",
 }
+
+# Moving home or changing the radius brings different venues into range, so every
+# followed artist's shows get re-matched; the notifier skips shows already sent.
+_AREA_FIELDS = frozenset({"home_location", "travel_radius_m"})
+
+_FOLLOWED_ARTIST_IDS = text("SELECT artist_id FROM follows WHERE user_id = :user_id")
 
 
 async def fetch_me(session: AsyncSession, user_id: UUID) -> UserOut:
@@ -75,4 +82,9 @@ async def update_me(payload: UserUpdate, user: CurrentUser, session: DbSession) 
         await session.execute(text(f"UPDATE users SET {', '.join(sets)} WHERE id = :id"), params)
         await session.commit()
         logger.info("user_updated", user_id=str(user.id), fields=sorted(payload.model_fields_set))
+        if _AREA_FIELDS & payload.model_fields_set:
+            result = await session.execute(_FOLLOWED_ARTIST_IDS, {"user_id": user.id})
+            followed = [row.artist_id for row in result]
+            if followed:
+                await get_taste_publisher().publish(user.id, followed)
     return await fetch_me(session, user.id)

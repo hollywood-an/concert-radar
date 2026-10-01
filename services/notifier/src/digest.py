@@ -28,17 +28,21 @@ _QUEUE = text(
 )
 
 # Alerts that stopped being worth sending while they waited: the show started, was
-# cancelled or postponed, or was dismissed, or the user turned email alerts off.
+# cancelled or postponed, was dismissed, or is no longer in range because the user moved
+# or shrank their radius, or the user turned email alerts off.
 _DROP_STALE = text(
     """
     DELETE FROM pending_alerts p
-    USING events e, users u
+    USING events e, venues v, users u
     WHERE e.id = p.event_id
+      AND v.id = e.venue_id
       AND u.id = p.user_id
       AND (
           e.starts_at <= now()
           OR e.status NOT IN ('announced', 'on_sale')
           OR NOT u.alert_email
+          OR u.home_location IS NULL
+          OR NOT ST_DWithin(u.home_location, v.location, u.travel_radius_m)
           OR EXISTS (
               SELECT 1 FROM dismissals d WHERE d.user_id = p.user_id AND d.event_id = p.event_id
           )
