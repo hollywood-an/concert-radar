@@ -16,7 +16,7 @@ from sqlalchemy.pool import NullPool
 from testcontainers.kafka import RedpandaContainer
 from testcontainers.postgres import PostgresContainer
 
-from src.schemas import MatchProposed
+from src.schemas import MatchProposed, StatusChange
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -172,3 +172,32 @@ async def count_rows(engine: AsyncEngine, table: str) -> int:
 def make_match(user_id: UUID, event_id: UUID, score: float = 0.72) -> MatchProposed:
     """Build the matches.proposed payload the matcher would publish."""
     return MatchProposed(user_id=user_id, event_id=event_id, score=score)
+
+
+def make_status_change(event_id: UUID, new_status: str) -> StatusChange:
+    """Build the events.status_changed payload the deduper would publish."""
+    return StatusChange(
+        event_id=event_id,
+        source="ticketmaster",
+        external_id=f"change-{event_id}",
+        old_status="on_sale",
+        new_status=new_status,
+    )
+
+
+async def mark_emailed(engine: AsyncEngine, user_id: UUID, event_id: UUID) -> None:
+    """Record that the user was already emailed about the event."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("INSERT INTO alerts_sent (user_id, event_id, channel) VALUES (:u, :e, 'email')"),
+            {"u": user_id, "e": event_id},
+        )
+
+
+async def set_status(engine: AsyncEngine, event_id: UUID, status: str) -> None:
+    """Change an event's status the way a re-scrape would."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE events SET status = CAST(:status AS event_status) WHERE id = :e"),
+            {"status": status, "e": event_id},
+        )

@@ -1,4 +1,4 @@
-"""Core notification logic: dedup and preference checks, then queue for the daily digest."""
+"""Core notification logic: decide what goes into each user's next daily digest."""
 
 from enum import StrEnum
 
@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from src.channels.email import CHANNEL
 from src.dedup import already_sent
-from src.digest import queue_alert
-from src.schemas import MatchProposed
+from src.digest import DISRUPTED_STATUSES, queue_alert, queue_show_changes
+from src.schemas import MatchProposed, StatusChange
 
 log = structlog.get_logger()
 
@@ -46,3 +46,11 @@ async def process_match(engine: AsyncEngine, match: MatchProposed) -> Outcome:
         if not await queue_alert(conn, match):
             return Outcome.DUPLICATE
         return Outcome.QUEUED
+
+
+async def process_status_change(engine: AsyncEngine, change: StatusChange) -> int:
+    """Queue change notices for users emailed about a show that fell through; return how many."""
+    if change.new_status not in DISRUPTED_STATUSES:
+        return 0
+    async with engine.begin() as conn:
+        return await queue_show_changes(conn, change.event_id)

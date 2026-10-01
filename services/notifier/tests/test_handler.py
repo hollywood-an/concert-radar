@@ -7,8 +7,15 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 from structlog.testing import capture_logs
 
-from src.handler import Outcome, process_match
-from tests.conftest import count_rows, create_event, create_user, make_match
+from src.handler import Outcome, process_match, process_status_change
+from tests.conftest import (
+    count_rows,
+    create_event,
+    create_user,
+    make_match,
+    make_status_change,
+    mark_emailed,
+)
 
 
 async def test_match_is_queued_not_emailed(db_engine: AsyncEngine) -> None:
@@ -74,3 +81,31 @@ async def test_missing_rows_are_reported(db_engine: AsyncEngine) -> None:
     """A match referencing vanished rows resolves to MISSING without raising."""
     outcome = await process_match(db_engine, make_match(uuid4(), uuid4()))
     assert outcome is Outcome.MISSING
+
+
+async def test_cancellation_notifies_only_users_already_emailed(db_engine: AsyncEngine) -> None:
+    """A cancelled show queues a change notice for users emailed about it, and nobody else."""
+    emailed = await create_user(db_engine, "emailed@example.com")
+    await create_user(db_engine, "bystander@example.com")
+    event_id = await create_event(db_engine)
+    await mark_emailed(db_engine, emailed, event_id)
+
+    queued = await process_status_change(db_engine, make_status_change(event_id, "cancelled"))
+
+    assert queued == 1
+    async with db_engine.connect() as conn:
+        rows = (await conn.execute(text("SELECT user_id FROM pending_show_changes"))).all()
+    assert [row.user_id for row in rows] == [emailed]
+
+
+@pytest.mark.parametrize("new_status", ["sold_out", "on_sale", "announced"])
+async def test_status_change_that_keeps_the_show_on_queues_nothing(
+    db_engine: AsyncEngine, new_status: str
+) -> None:
+    """Selling out or going on sale doesn't break anyone's plans, so no notice is queued."""
+    user_id = await create_user(db_engine, "still-on@example.com")
+    event_id = await create_event(db_engine)
+    await mark_emailed(db_engine, user_id, event_id)
+
+    assert await process_status_change(db_engine, make_status_change(event_id, new_status)) == 0
+    assert await count_rows(db_engine, "pending_show_changes") == 0

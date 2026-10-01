@@ -1,4 +1,4 @@
-"""Long-running consumer: matches.proposed -> dedup + prefs -> pending_alerts -> daily digest."""
+"""Long-running consumer: matches.proposed + events.status_changed -> daily digest."""
 
 import asyncio
 import contextlib
@@ -12,13 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from src.config import Settings
 from src.digest import daily_digests
-from src.handler import process_match
+from src.handler import process_match, process_status_change
 from src.producer import NotifierProducer
-from src.schemas import MatchProposed
+from src.schemas import MatchProposed, StatusChange
 from src.telemetry import setup_telemetry
 
 SERVICE_NAME = "notifier"
 MATCHES_PROPOSED_TOPIC = "matches.proposed"
+EVENTS_STATUS_CHANGED_TOPIC = "events.status_changed"
 
 logger = structlog.get_logger()
 tracer = trace.get_tracer(SERVICE_NAME)
@@ -36,11 +37,12 @@ def main() -> None:
 
 
 async def run(stop_after: int | None = None) -> int:
-    """Consume matches.proposed until stopped; return the number of messages processed."""
+    """Consume both notifier topics until stopped; return the number of messages processed."""
     settings = Settings()
     engine = create_async_engine(settings.database_url)
     consumer = AIOKafkaConsumer(
         MATCHES_PROPOSED_TOPIC,
+        EVENTS_STATUS_CHANGED_TOPIC,
         bootstrap_servers=settings.kafka_bootstrap_servers,
         group_id=SERVICE_NAME,
         enable_auto_commit=False,
@@ -52,7 +54,9 @@ async def run(stop_after: int | None = None) -> int:
     digest_task = asyncio.create_task(daily_digests(engine, producer, settings.digest_hour_utc))
     try:
         logger.info(
-            "consuming", topic=MATCHES_PROPOSED_TOPIC, digest_hour_utc=settings.digest_hour_utc
+            "consuming",
+            topics=[MATCHES_PROPOSED_TOPIC, EVENTS_STATUS_CHANGED_TOPIC],
+            digest_hour_utc=settings.digest_hour_utc,
         )
         return await consume_loop(consumer, engine, stop_after)
     finally:
@@ -78,7 +82,9 @@ async def consume_loop(
             # A malformed message can never succeed; skip it after logging so the
             # partition does not wedge. Anything else propagates and crashes the
             # process, leaving the offset uncommitted for a clean retry.
-            logger.exception("skipping malformed message", offset=message.offset)
+            logger.exception(
+                "skipping malformed message", topic=message.topic, offset=message.offset
+            )
         await consumer.commit()
         processed += 1
         if stop_after is not None and processed >= stop_after:
@@ -87,19 +93,29 @@ async def consume_loop(
 
 
 async def handle_message(message: ConsumerRecord, engine: AsyncEngine) -> None:
-    """Queue one proposed match for the digest, continuing the producer's trace."""
+    """Queue one match or status change for the digest, continuing the producer's trace."""
     context = extract({name: value.decode() for name, value in message.headers})
     with tracer.start_as_current_span(
-        f"consume {MATCHES_PROPOSED_TOPIC}", context=context, kind=trace.SpanKind.CONSUMER
+        f"consume {message.topic}", context=context, kind=trace.SpanKind.CONSUMER
     ):
-        match = MatchProposed.model_validate_json(message.value)
-        outcome = await process_match(engine, match)
-        logger.info(
-            "match handled",
-            outcome=outcome.value,
-            user_id=str(match.user_id),
-            event_id=str(match.event_id),
-        )
+        if message.topic == MATCHES_PROPOSED_TOPIC:
+            match = MatchProposed.model_validate_json(message.value)
+            outcome = await process_match(engine, match)
+            logger.info(
+                "match handled",
+                outcome=outcome.value,
+                user_id=str(match.user_id),
+                event_id=str(match.event_id),
+            )
+        else:
+            change = StatusChange.model_validate_json(message.value)
+            queued = await process_status_change(engine, change)
+            logger.info(
+                "status change handled",
+                event_id=str(change.event_id),
+                new_status=change.new_status,
+                notices_queued=queued,
+            )
 
 
 if __name__ == "__main__":

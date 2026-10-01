@@ -11,8 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from structlog.testing import capture_logs
 
 from src.digest import seconds_until_next_digest, send_digests
-from src.handler import process_match
-from tests.conftest import STARTS_AT, count_rows, create_event, create_user, make_match
+from src.handler import process_match, process_status_change
+from tests.conftest import (
+    STARTS_AT,
+    count_rows,
+    create_event,
+    create_user,
+    make_match,
+    make_status_change,
+    mark_emailed,
+    set_status,
+)
 
 EDT = timezone(timedelta(hours=-4))
 
@@ -114,3 +123,45 @@ async def test_alerts_gone_stale_while_waiting_are_dropped(db_engine: AsyncEngin
     assert _emails(logs) == {}
     assert await count_rows(db_engine, "pending_alerts") == 0
     assert await count_rows(db_engine, "alerts_sent") == 0
+
+
+async def test_digest_includes_updates_to_shows_already_sent(db_engine: AsyncEngine) -> None:
+    """A cancelled show the user was emailed about goes in an updates section of the digest."""
+    user_id = await create_user(db_engine, "updates@example.com")
+    cancelled = await create_event(db_engine, external_id="digest-cancelled")
+    upcoming = await create_event(db_engine, external_id="digest-upcoming", artist_name="Turnstile")
+    await mark_emailed(db_engine, user_id, cancelled)
+    await set_status(db_engine, cancelled, "cancelled")
+    await process_status_change(db_engine, make_status_change(cancelled, "cancelled"))
+    await process_match(db_engine, make_match(user_id, upcoming))
+
+    with capture_logs() as logs:
+        sent = await send_digests(db_engine)
+
+    email = _emails(logs)["updates@example.com"]
+    assert email["subject"] == "1 new show near you, 1 show update"
+    new_shows, updates = email["body"].split("Updates to shows we told you about:")
+    assert "Turnstile" in new_shows
+    assert "Cancelled: Phoebe Bridgers" in updates
+    assert sorted((n.kind, n.event_id) for n in sent) == sorted(
+        [("new_show", upcoming), ("show_change", cancelled)]
+    )
+    assert await count_rows(db_engine, "pending_show_changes") == 0
+    assert await count_rows(db_engine, "pending_alerts") == 0
+
+
+async def test_change_notice_dropped_when_show_is_back_on(db_engine: AsyncEngine) -> None:
+    """A show postponed and then back on sale before the digest sends no notice."""
+    user_id = await create_user(db_engine, "relieved@example.com")
+    event_id = await create_event(db_engine)
+    await mark_emailed(db_engine, user_id, event_id)
+    await set_status(db_engine, event_id, "postponed")
+    await process_status_change(db_engine, make_status_change(event_id, "postponed"))
+    await set_status(db_engine, event_id, "on_sale")
+
+    with capture_logs() as logs:
+        sent = await send_digests(db_engine)
+
+    assert sent == []
+    assert _emails(logs) == {}
+    assert await count_rows(db_engine, "pending_show_changes") == 0
