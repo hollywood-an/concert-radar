@@ -7,10 +7,7 @@ topics:
 	infra/redpanda/create-topics.sh
 
 migrate:
-	@for f in db/migrations/*.sql; do \
-		echo "Running $$f..."; \
-		psql $(DATABASE_URL_SYNC) -f $$f; \
-	done
+	db/migrate.sh
 
 seed:
 	psql $(DATABASE_URL_SYNC) -f db/seeds/genres.sql
