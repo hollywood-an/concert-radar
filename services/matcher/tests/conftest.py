@@ -80,7 +80,7 @@ async def db_engine(database_url: str) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(database_url, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.execute(
-            text("TRUNCATE event_artists, follows, alerts_sent, dismissals, users, events")
+            text("TRUNCATE event_artists, follows, alerts_sent, dismissals, users, events CASCADE")
         )
         await conn.execute(
             text("DELETE FROM artists WHERE NOT (name = ANY(:names))"),

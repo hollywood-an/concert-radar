@@ -118,8 +118,11 @@ function SettingsForm() {
             onChange={(event) => setEmailAlerts(event.target.checked)}
             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
           />
-          Email me when a matching show is announced
+          Email me a daily digest when artists I follow have shows near me
         </label>
+        <p className="mt-1 pl-6 text-xs text-slate-500">
+          Sent once a day at 14:00 UTC (10am Eastern in summer, 9am in winter).
+        </p>
       </section>
 
       <section className="mt-8">

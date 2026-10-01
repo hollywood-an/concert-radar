@@ -1,24 +1,25 @@
-"""Pipeline test: proposed matches in, one notification out, duplicates swallowed."""
+"""Pipeline test: proposed matches queue once, and the digest publishes one notification."""
 
+import asyncio
 import json
 
 import pytest
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from src.digest import run_digest
 from src.main import MATCHES_PROPOSED_TOPIC, run
-from src.producer import NOTIFICATIONS_SENT_TOPIC
-from tests.conftest import create_event, create_user, make_match
+from src.producer import NOTIFICATIONS_SENT_TOPIC, NotifierProducer
+from tests.conftest import count_rows, create_event, create_user, make_match
 
 
-async def test_match_notifies_once(
+async def test_duplicate_matches_queue_once_and_digest_notifies_once(
     kafka_bootstrap: str,
     db_engine: AsyncEngine,
     database_url: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Two identical proposed matches produce exactly one notifications.sent message."""
+    """Two identical matches queue one alert; the digest sends it and publishes it once."""
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap)
 
@@ -40,6 +41,15 @@ async def test_match_notifies_once(
 
     processed = await run(stop_after=2)
     assert processed == 2
+    assert await count_rows(db_engine, "pending_alerts") == 1
+    assert await count_rows(db_engine, "alerts_sent") == 0
+
+    notifier = NotifierProducer(kafka_bootstrap)
+    await notifier.start()
+    try:
+        await run_digest(db_engine, notifier)
+    finally:
+        await notifier.stop()
 
     consumer = AIOKafkaConsumer(
         NOTIFICATIONS_SENT_TOPIC,
@@ -48,8 +58,8 @@ async def test_match_notifies_once(
     )
     await consumer.start()
     try:
-        first = await consumer.getone()
-        # The duplicate match must not have produced a second message.
+        first = await asyncio.wait_for(consumer.getone(), timeout=10)
+        # The duplicate match must not have produced a second notification.
         extra = await consumer.getmany(timeout_ms=3_000)
         assert not any(extra.values()), "expected exactly one notification"
     finally:
@@ -60,7 +70,5 @@ async def test_match_notifies_once(
     assert body["user_id"] == str(user_id)
     assert body["event_id"] == str(event_id)
     assert body["channel"] == "email"
-
-    async with db_engine.connect() as conn:
-        count = (await conn.execute(text("SELECT count(*) FROM alerts_sent"))).scalar_one()
-    assert count == 1
+    assert await count_rows(db_engine, "alerts_sent") == 1
+    assert await count_rows(db_engine, "pending_alerts") == 0

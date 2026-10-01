@@ -80,7 +80,7 @@ async def db_engine(database_url: str) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(database_url, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.execute(
-            text("TRUNCATE event_artists, follows, alerts_sent, dismissals, users, events")
+            text("TRUNCATE event_artists, follows, alerts_sent, dismissals, users, events CASCADE")
         )
         await conn.execute(
             text("DELETE FROM artists WHERE NOT (name = ANY(:names))"),
@@ -122,28 +122,43 @@ async def create_user(engine: AsyncEngine, email: str, *, alert_email: bool = Tr
     return UUID(str(user_id))
 
 
-async def create_event(engine: AsyncEngine, *, external_id: str = "notify-0001") -> UUID:
-    """Insert a Phoebe Bridgers event at a seeded venue and return its id."""
+async def create_event(
+    engine: AsyncEngine,
+    *,
+    external_id: str = "notify-0001",
+    artist_name: str = "Phoebe Bridgers",
+    starts_at: datetime = STARTS_AT,
+) -> UUID:
+    """Insert an on-sale event headlined by a seeded artist and return its id."""
     async with engine.begin() as conn:
         event_id = (
             await conn.execute(
                 text(
                     "INSERT INTO events (venue_id, title, starts_at, status, source, external_id)"
-                    " SELECT v.id, 'Phoebe Bridgers Live', :starts_at, 'on_sale',"
-                    " 'ticketmaster', :external_id"
+                    " SELECT v.id, :title, :starts_at, 'on_sale', 'ticketmaster', :external_id"
                     " FROM venues v WHERE v.name = 'Newport Music Hall' RETURNING id"
                 ),
-                {"starts_at": STARTS_AT, "external_id": external_id},
+                {
+                    "title": f"{artist_name} Live",
+                    "starts_at": starts_at,
+                    "external_id": external_id,
+                },
             )
         ).scalar_one()
         await conn.execute(
             text(
                 "INSERT INTO event_artists (event_id, artist_id, billing)"
-                " SELECT :event_id, id, 0 FROM artists WHERE name = 'Phoebe Bridgers'"
+                " SELECT :event_id, id, 0 FROM artists WHERE name = :name"
             ),
-            {"event_id": event_id},
+            {"event_id": event_id, "name": artist_name},
         )
     return UUID(str(event_id))
+
+
+async def count_rows(engine: AsyncEngine, table: str) -> int:
+    """Count the rows in a table."""
+    async with engine.connect() as conn:
+        return int((await conn.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one())
 
 
 def make_match(user_id: UUID, event_id: UUID, score: float = 0.72) -> MatchProposed:

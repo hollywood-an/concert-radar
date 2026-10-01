@@ -1,6 +1,7 @@
-"""Long-running consumer: matches.proposed -> dedup + prefs -> email log -> notifications.sent."""
+"""Long-running consumer: matches.proposed -> dedup + prefs -> pending_alerts -> daily digest."""
 
 import asyncio
+import contextlib
 
 import structlog
 from aiokafka import AIOKafkaConsumer, ConsumerRecord
@@ -9,11 +10,11 @@ from opentelemetry.propagate import extract
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from src.channels.email import CHANNEL
 from src.config import Settings
-from src.handler import Outcome, process_match
+from src.digest import daily_digests
+from src.handler import process_match
 from src.producer import NotifierProducer
-from src.schemas import MatchProposed, NotificationSent
+from src.schemas import MatchProposed
 from src.telemetry import setup_telemetry
 
 SERVICE_NAME = "notifier"
@@ -48,10 +49,16 @@ async def run(stop_after: int | None = None) -> int:
     producer = NotifierProducer(settings.kafka_bootstrap_servers)
     await consumer.start()
     await producer.start()
+    digest_task = asyncio.create_task(daily_digests(engine, producer, settings.digest_hour_utc))
     try:
-        logger.info("consuming", topic=MATCHES_PROPOSED_TOPIC)
-        return await consume_loop(consumer, producer, engine, stop_after)
+        logger.info(
+            "consuming", topic=MATCHES_PROPOSED_TOPIC, digest_hour_utc=settings.digest_hour_utc
+        )
+        return await consume_loop(consumer, engine, stop_after)
     finally:
+        digest_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await digest_task
         await consumer.stop()
         await producer.stop()
         await engine.dispose()
@@ -59,7 +66,6 @@ async def run(stop_after: int | None = None) -> int:
 
 async def consume_loop(
     consumer: AIOKafkaConsumer,
-    producer: NotifierProducer,
     engine: AsyncEngine,
     stop_after: int | None = None,
 ) -> int:
@@ -67,7 +73,7 @@ async def consume_loop(
     processed = 0
     async for message in consumer:
         try:
-            await handle_message(message, producer, engine)
+            await handle_message(message, engine)
         except ValidationError:
             # A malformed message can never succeed; skip it after logging so the
             # partition does not wedge. Anything else propagates and crashes the
@@ -80,25 +86,14 @@ async def consume_loop(
     return processed
 
 
-async def handle_message(
-    message: ConsumerRecord, producer: NotifierProducer, engine: AsyncEngine
-) -> None:
-    """Handle one proposed match, continuing the producer's trace."""
+async def handle_message(message: ConsumerRecord, engine: AsyncEngine) -> None:
+    """Queue one proposed match for the digest, continuing the producer's trace."""
     context = extract({name: value.decode() for name, value in message.headers})
     with tracer.start_as_current_span(
         f"consume {MATCHES_PROPOSED_TOPIC}", context=context, kind=trace.SpanKind.CONSUMER
     ):
         match = MatchProposed.model_validate_json(message.value)
         outcome = await process_match(engine, match)
-        if outcome is Outcome.SENT:
-            await producer.publish_sent(
-                NotificationSent(
-                    user_id=match.user_id,
-                    event_id=match.event_id,
-                    channel=CHANNEL,
-                    score=match.score,
-                )
-            )
         logger.info(
             "match handled",
             outcome=outcome.value,
