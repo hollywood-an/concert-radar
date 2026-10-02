@@ -23,6 +23,8 @@ async def test_consume_enrich_publish_roundtrip(
     """A deduped message enriches the artist in Postgres and lands on events.enriched."""
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap)
+    # Ephemeral port: a consumer running locally may already hold the default one.
+    monkeypatch.setenv("HEALTH_PORT", "0")
 
     artist_id = await create_artist(db_engine, "Wet Leg")
     event_id, venue_id = await create_event(db_engine, [artist_id])

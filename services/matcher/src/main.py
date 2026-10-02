@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from src.config import Settings
+from src.health import start_health_server
 from src.producer import MatcherProducer
 from src.ranker import matches_for_event, matches_for_followed_artists
 from src.schemas import EnrichedEvent, TasteUpdated
@@ -47,12 +48,17 @@ async def run(stop_after: int | None = None) -> int:
         auto_offset_reset="earliest",
     )
     producer = MatcherProducer(settings.kafka_bootstrap_servers)
+    consumer_started = asyncio.Event()
+    health_server = await start_health_server(settings.health_port, engine, consumer_started)
     await consumer.start()
+    consumer_started.set()
     await producer.start()
     try:
         logger.info("consuming", topics=[EVENTS_ENRICHED_TOPIC, USERS_TASTE_UPDATED_TOPIC])
         return await consume_loop(consumer, producer, engine, stop_after)
     finally:
+        health_server.close()
+        await health_server.wait_closed()
         await consumer.stop()
         await producer.stop()
         await engine.dispose()

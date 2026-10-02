@@ -29,6 +29,8 @@ async def test_duplicate_matches_queue_once_and_digest_notifies_once(
     """Two identical matches queue one alert; the digest sends it and publishes it once."""
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap)
+    # Ephemeral port: a consumer running locally may already hold the default one.
+    monkeypatch.setenv("HEALTH_PORT", "0")
 
     user_id = await create_user(db_engine, "pipeline@example.com")
     event_id = await create_event(db_engine)
@@ -91,6 +93,7 @@ async def test_cancellation_from_the_broker_queues_a_change_notice(
     """An events.status_changed cancellation for an emailed show queues one change notice."""
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap)
+    monkeypatch.setenv("HEALTH_PORT", "0")
 
     user_id = await create_user(db_engine, "pipeline-change@example.com")
     event_id = await create_event(db_engine, external_id="pipeline-change")
