@@ -4,6 +4,8 @@ locals {
   account_id   = data.aws_caller_identity.current.account_id
   ecr_registry = "${local.account_id}.dkr.ecr.${var.region}.amazonaws.com"
 
+  run_shell_script_document_arn = "arn:aws:ssm:${var.region}::document/AWS-RunShellScript"
+
   # AL2023 does not package the Compose plugin, so the host installs this
   # release binary and checks it against the published checksum.
   compose_version = "v5.5.1"
