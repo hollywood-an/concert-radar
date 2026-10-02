@@ -37,7 +37,9 @@ services:
       - "6379:6379"
 
   minio:
-    image: minio/minio:latest
+    # minio/minio images can no longer be pulled from Docker Hub; pgsty/minio is the
+    # maintained community fork with the same entrypoint and the mc client.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
