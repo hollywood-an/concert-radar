@@ -1,0 +1,75 @@
+name: Images
+
+# Builds every production image on each pull request (nothing is pushed; the deploy
+# workflow pushes to ECR from main) and smoke-tests that each one actually starts.
+on:
+  pull_request:
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: image (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: gateway, context: services/gateway, python: true }
+          - { name: scraper-ticketmaster, context: services/scraper-ticketmaster, python: true }
+          - { name: deduper, context: services/deduper, python: true }
+          - { name: enricher, context: services/enricher, python: true }
+          - { name: matcher, context: services/matcher, python: true }
+          - { name: notifier, context: services/notifier, python: true }
+          - { name: web, context: web, python: false }
+          - { name: postgres, context: infra/postgres, python: false }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          load: true
+          tags: concert-radar/${{ matrix.name }}:ci
+          cache-from: type=gha,scope=image-${{ matrix.name }}
+          cache-to: type=gha,scope=image-${{ matrix.name }},mode=max
+
+      - name: Import the service inside its image
+        if: matrix.python
+        run: docker run --rm concert-radar/${{ matrix.name }}:ci python -c "import src.main"
+
+      - name: Enricher uses CPU-only torch and embeds offline
+        if: matrix.name == 'enricher'
+        run: |
+          docker run --rm --network none concert-radar/enricher:ci python -c "
+          import torch
+          from src.embeddings import embed_genres
+          assert torch.__version__.endswith('+cpu'), torch.__version__
+          assert len(embed_genres(['indie rock'])) == 384
+          print('torch', torch.__version__)"
+
+      - name: Web server answers
+        if: matrix.name == 'web'
+        run: |
+          docker run -d --name web -p 3000:3000 concert-radar/web:ci
+          for _ in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:3000/ && exit 0; sleep 1; done
+          docker logs web
+          exit 1
+
+      - name: Image size
+        run: docker image ls concert-radar/${{ matrix.name }}:ci --format '{{.Repository}} {{.Size}}'
+
+  images-ok:
+    if: always()
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every image built and started
+        run: test "${{ needs.build.result }}" = success
