@@ -45,6 +45,15 @@ jobs:
         if: matrix.python
         run: docker run --rm concert-radar/${{ matrix.name }}:ci python -c "import src.main"
 
+      # Dev dependencies are absent from the image, so a WebSocket library that only the
+      # tests install would leave uvicorn answering /ws/feed upgrades with a 404.
+      - name: Gateway image can serve WebSockets
+        if: matrix.name == 'gateway'
+        run: |
+          docker run --rm concert-radar/gateway:ci python -c "
+          from uvicorn.protocols.websockets.auto import AutoWebSocketsProtocol
+          assert AutoWebSocketsProtocol is not None, 'no WebSocket library in the image'"
+
       - name: Enricher uses CPU-only torch and embeds offline
         if: matrix.name == 'enricher'
         run: |
