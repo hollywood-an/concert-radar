@@ -65,6 +65,7 @@ test-image:
 
 test: test-image
 	@for s in $(SERVICES); do (cd services/$$s && uv run pytest -q) || exit 1; done
+	cd web && pnpm test
 
 lint:
 	@for s in $(SERVICES); do \
