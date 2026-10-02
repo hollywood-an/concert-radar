@@ -26,3 +26,14 @@ variable "create_github_oidc_provider" {
   type        = bool
   default     = true
 }
+
+variable "budget_email" {
+  description = "Email for the 40 USD/month budget alert. Empty creates no budget."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.budget_email == "" || can(regex("^[^@[:space:]]+@[^@[:space:]]+$", var.budget_email))
+    error_message = "budget_email must be empty or an email address."
+  }
+}
