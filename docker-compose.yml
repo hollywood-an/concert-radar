@@ -1,7 +1,7 @@
 services:
   postgres:
-    # Built from infra/postgres: postgis/postgis:16-3.4 + pgvector. The spec's
-    # pgvector/pgvector:pg16 image lacks PostGIS, which the schema requires.
+    # Built from infra/postgres: pgvector/pgvector (pg16, bookworm) + PostGIS. The
+    # spec's plain pgvector/pgvector:pg16 image lacks PostGIS, which the schema requires.
     build: infra/postgres
     ports:
       # Host port 5433: a Homebrew Postgres on this machine owns 127.0.0.1:5432
