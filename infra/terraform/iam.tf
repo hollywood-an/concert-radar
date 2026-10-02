@@ -67,3 +67,108 @@ resource "aws_iam_instance_profile" "host" {
   name = "concert-radar-host"
   role = aws_iam_role.host.name
 }
+
+# GitHub Actions deploy role, assumable only from this repo's production
+# environment through OIDC.
+
+locals {
+  github_oidc_url = "https://token.actions.githubusercontent.com"
+  github_oidc_provider_arn = (
+    var.create_github_oidc_provider
+    ? aws_iam_openid_connect_provider.github[0].arn
+    : data.aws_iam_openid_connect_provider.github[0].arn
+  )
+}
+
+# AWS trusts GitHub's OIDC signing certificate through its own CA store, so no
+# thumbprint is pinned.
+resource "aws_iam_openid_connect_provider" "github" {
+  count = var.create_github_oidc_provider ? 1 : 0
+
+  url            = local.github_oidc_url
+  client_id_list = ["sts.amazonaws.com"]
+}
+
+data "aws_iam_openid_connect_provider" "github" {
+  count = var.create_github_oidc_provider ? 0 : 1
+
+  url = local.github_oidc_url
+}
+
+data "aws_iam_policy_document" "github_assume" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [local.github_oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repo}:environment:production"]
+    }
+  }
+}
+
+resource "aws_iam_role" "deploy" {
+  name               = "concert-radar-github-deploy"
+  description        = "GitHub Actions production deploys for ${var.github_repo}"
+  assume_role_policy = data.aws_iam_policy_document.github_assume.json
+}
+
+data "aws_iam_policy_document" "deploy" {
+  statement {
+    sid       = "EcrLogin"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  # DescribeImages lets a re-run skip images already pushed for its commit,
+  # since immutable tags reject a second push.
+  statement {
+    sid = "EcrPush"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+    ]
+    resources = [for repo in aws_ecr_repository.app : repo.arn]
+  }
+
+  statement {
+    sid     = "RunDeployOnHost"
+    actions = ["ssm:SendCommand"]
+    resources = [
+      aws_instance.host.arn,
+      local.run_shell_script_document_arn,
+    ]
+  }
+
+  # These two actions do not support resource-level permissions.
+  statement {
+    sid = "ReadDeployResult"
+    actions = [
+      "ssm:GetCommandInvocation",
+      "ssm:ListCommandInvocations",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "deploy" {
+  name   = "concert-radar-github-deploy"
+  role   = aws_iam_role.deploy.id
+  policy = data.aws_iam_policy_document.deploy.json
+}
