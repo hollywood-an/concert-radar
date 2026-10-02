@@ -1,0 +1,37 @@
+name: Terraform
+
+# No path filters: terraform is meant to be a required check, and a filtered-out
+# workflow would leave pull requests waiting on a check that never reports.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+
+      - run: terraform fmt -check -recursive
+
+      # Fail rather than rewrite a stale .terraform.lock.hcl.
+      - run: terraform init -backend=false -input=false -lockfile=readonly
+
+      - run: terraform validate
