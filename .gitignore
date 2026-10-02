@@ -32,3 +32,10 @@ htmlcov/
 
 # Local production-stack rehearsal settings
 deploy/local.env
+
+# Terraform (state is local and holds account details; never commit it)
+.terraform/
+*.tfstate*
+*.tfplan
+tfplan
+*.tfvars
