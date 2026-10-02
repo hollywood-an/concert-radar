@@ -18,6 +18,7 @@ dependencies = [
     "opentelemetry-sdk>=1.27",
     "opentelemetry-exporter-otlp-proto-grpc>=1.27",
     "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "websockets>=16.0",
 ]
 
 [dependency-groups]
@@ -28,7 +29,6 @@ dev = [
     "mypy>=1.13",
     "ruff>=0.8",
     "types-python-jose>=3.3",
-    "websockets>=16.0",
 ]
 
 [tool.uv]
