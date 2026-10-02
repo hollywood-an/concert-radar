@@ -13,6 +13,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from src import ws
+from src.config import get_settings
 from src.deps import get_sessionmaker
 from src.kafka import get_taste_publisher
 from src.routes import artists, auth, events, feed, follows, users
@@ -36,7 +37,7 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Concert Radar Gateway", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=get_settings().cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,4 +69,6 @@ async def readyz() -> JSONResponse:
     return JSONResponse(content={"status": "ok"})
 
 
-FastAPIInstrumentor.instrument_app(app)
+# Health probes every few seconds would bury real traces, and the WebSocket URL carries
+# the user's JWT in its query string, which must not end up in span attributes.
+FastAPIInstrumentor.instrument_app(app, excluded_urls="healthz,readyz,ws/feed")

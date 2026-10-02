@@ -1,0 +1,20 @@
+# Rehearse the production stack on a laptop: builds every image locally instead of
+# pulling from ECR. With PUBLIC_HOST=localhost, Caddy serves https://localhost and
+# https://api.localhost from its own local CA (curl -k, or accept the browser warning).
+#
+#   cp deploy/local.env.example deploy/local.env
+#   docker compose -f deploy/compose.prod.yml -f deploy/compose.local.yml \
+#     --env-file deploy/local.env up -d --build --wait
+services:
+  postgres: { build: ../infra/postgres }
+  gateway: { build: ../services/gateway }
+  deduper: { build: ../services/deduper }
+  enricher: { build: ../services/enricher }
+  matcher: { build: ../services/matcher }
+  notifier: { build: ../services/notifier }
+  scraper: { build: ../services/scraper-ticketmaster }
+  web:
+    build:
+      context: ../web
+      args:
+        NEXT_PUBLIC_GATEWAY_URL: https://api.${PUBLIC_HOST:?}

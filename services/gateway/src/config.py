@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret-change-in-prod"
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 72
+    # Browser origins allowed to call the API; a JSON list in the environment,
+    # e.g. CORS_ORIGINS='["https://concert-radar.example"]'.
+    cors_origins: list[str] = ["http://localhost:3000"]
 
 
 @lru_cache

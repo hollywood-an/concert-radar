@@ -46,11 +46,13 @@ function LoginCard() {
             {status === "loading" ? "Signing in…" : "Sign in"}
           </button>
           {status === "error" && (
-            <p className="text-sm text-red-600">
-              Login failed. Is the gateway running on localhost:8000?
-            </p>
+            <p className="text-sm text-red-600">Couldn&apos;t sign in. Please try again.</p>
           )}
         </form>
+        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          Demo: sign in with any email address. There&apos;s no password, and no email is
+          ever sent.
+        </p>
       </div>
     </main>
   );
