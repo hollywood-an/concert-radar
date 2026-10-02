@@ -1,0 +1,210 @@
+# Production stack for the single EC2 host. Run it through deploy/compose.sh, which passes
+# the --env-file that deploy/deploy.sh writes (secrets, image tag, public host name).
+#
+#   compose.sh --profile ops run --rm migrate    # apply new db migrations
+#   compose.sh --profile ops run --rm topics     # create Kafka topics (idempotent)
+#   compose.sh up -d --wait                      # start or update everything
+#   compose.sh --profile jobs run --rm scraper   # one Ticketmaster scrape (EventBridge
+#                                                # Scheduler runs this every 6 hours)
+#
+# Only Caddy publishes ports (80/443). Long-running services restart on failure because
+# the Kafka consumers deliberately crash on unexpected errors and resume from their last
+# committed offset.
+name: concert-radar-prod
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: "3" }
+
+x-python-env: &python-env
+  DATABASE_URL: postgresql+asyncpg://cr:${POSTGRES_PASSWORD:?}@postgres:5432/concertradar
+  KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+
+x-needs-data: &needs-data
+  postgres: { condition: service_healthy }
+  redpanda: { condition: service_healthy }
+
+services:
+  postgres:
+    <<: *service
+    image: ${ECR_REGISTRY:?}/concert-radar/postgres:${IMAGE_TAG:?}
+    environment:
+      POSTGRES_DB: concertradar
+      POSTGRES_USER: cr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c max_connections=100
+    volumes: [pgdata:/var/lib/postgresql/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cr -d concertradar"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redpanda:
+    <<: *service
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --kafka-addr 0.0.0.0:9092
+      - --advertise-kafka-addr redpanda:9092
+    volumes: [redpanda_data:/var/lib/redpanda/data]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -qE 'Healthy:.+true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  jaeger:
+    <<: *service
+    image: jaegertracing/all-in-one:1.54
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      MEMORY_MAX_TRACES: "10000"
+    mem_limit: 384m
+
+  gateway:
+    <<: *service
+    image: ${ECR_REGISTRY:?}/concert-radar/gateway:${IMAGE_TAG:?}
+    environment:
+      <<: *python-env
+      JWT_SECRET: ${JWT_SECRET:?}
+      CORS_ORIGINS: '["https://${PUBLIC_HOST:?}"]'
+    depends_on: *needs-data
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  deduper:
+    <<: *service
+    image: ${ECR_REGISTRY:?}/concert-radar/deduper:${IMAGE_TAG:?}
+    environment: *python-env
+    depends_on: *needs-data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  enricher:
+    <<: *service
+    image: ${ECR_REGISTRY:?}/concert-radar/enricher:${IMAGE_TAG:?}
+    environment: *python-env
+    depends_on: *needs-data
+    mem_limit: 1200m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
+
+  matcher:
+    <<: *service
+    image: ${ECR_REGISTRY:?}/concert-radar/matcher:${IMAGE_TAG:?}
+    environment: *python-env
+    depends_on: *needs-data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8083/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  notifier:
+    <<: *service
+    image: ${ECR_REGISTRY:?}/concert-radar/notifier:${IMAGE_TAG:?}
+    environment: *python-env
+    depends_on: *needs-data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8084/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  web:
+    <<: *service
+    image: ${ECR_REGISTRY:?}/concert-radar/web:${IMAGE_TAG:?}
+    environment:
+      # Server-side calls (the Spotify OAuth callback route) stay on the internal network.
+      GATEWAY_URL: http://gateway:8000
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  caddy:
+    <<: *service
+    image: caddy:2.11.4-alpine
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?}
+      JAEGER_PASSWORD_HASH: ${JAEGER_PASSWORD_HASH:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Keeping issued certificates across deploys avoids Let's Encrypt rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, gateway, jaeger]
+    mem_limit: 128m
+
+  # One-shot jobs (profiles keep them out of `up`).
+
+  migrate:
+    image: ${ECR_REGISTRY:?}/concert-radar/postgres:${IMAGE_TAG:?}
+    profiles: [ops]
+    entrypoint: ["/work/db/migrate.sh"]
+    environment:
+      DATABASE_URL_SYNC: postgresql://cr:${POSTGRES_PASSWORD:?}@postgres:5432/concertradar
+    volumes: ["../db:/work/db:ro"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  topics:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+    profiles: [ops]
+    entrypoint: ["/work/create-topics.sh"]
+    environment:
+      RPK_BROKERS: redpanda:9092
+    volumes: ["../infra/redpanda/create-topics.sh:/work/create-topics.sh:ro"]
+    depends_on:
+      redpanda: { condition: service_healthy }
+
+  scraper:
+    image: ${ECR_REGISTRY:?}/concert-radar/scraper-ticketmaster:${IMAGE_TAG:?}
+    profiles: [jobs]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      TICKETMASTER_API_KEY: ${TICKETMASTER_API_KEY:?}
+      TICKETMASTER_DMA_ID: "259"
+      # Raw responses go to S3 using the instance role; empty disables archiving.
+      S3_BUCKET: ${RAW_BUCKET:-}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-2}
+    depends_on:
+      redpanda: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redpanda_data:
+  caddy_data:
+  caddy_config:

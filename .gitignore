@@ -29,3 +29,6 @@ htmlcov/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Local production-stack rehearsal settings
+deploy/local.env

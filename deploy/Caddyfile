@@ -1,0 +1,22 @@
+# Public entry point. PUBLIC_HOST is the EC2 Elastic IP in sslip.io form (for example
+# 3-14-15-92.sslip.io), so Caddy can get Let's Encrypt certificates without a domain.
+# WebSocket upgrades on api.* (/ws/feed) are proxied automatically.
+
+{$PUBLIC_HOST} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+api.{$PUBLIC_HOST} {
+	encode zstd gzip
+	reverse_proxy gateway:8000
+}
+
+# Traces are useful to show but reveal internal detail, so the UI sits behind basic auth.
+# The password is generated on the host on first deploy (SSM /concert-radar/jaeger_password).
+jaeger.{$PUBLIC_HOST} {
+	basic_auth {
+		admin {$JAEGER_PASSWORD_HASH}
+	}
+	reverse_proxy jaeger:16686
+}

@@ -62,7 +62,7 @@ export default function FeedList() {
   if (status === "error") {
     return (
       <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        Could not load your feed. Is the gateway running on localhost:8000?
+        Couldn&apos;t load your feed. Try again in a moment.
       </p>
     );
   }
@@ -70,7 +70,7 @@ export default function FeedList() {
   if (items.length === 0) {
     return (
       <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-        No upcoming shows match. Loosen the filters or run the scraper to pull in events.
+        No upcoming shows match. Try loosening the filters or widening your travel radius.
       </p>
     );
   }
