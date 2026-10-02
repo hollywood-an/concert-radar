@@ -1,4 +1,4 @@
-.PHONY: dev infra topics migrate seed test test-image lint
+.PHONY: dev infra topics migrate seed demo test test-image lint
 
 SERVICES := gateway scraper-ticketmaster deduper enricher matcher notifier
 
@@ -11,9 +11,22 @@ topics:
 migrate:
 	db/migrate.sh
 
+# Sample artists and venues for local development (never loaded in production, where the
+# scraper supplies real venues). Like db/migrate.sh, falls back to psql in the container.
 seed:
-	psql $(DATABASE_URL_SYNC) -f db/seeds/genres.sql
-	psql $(DATABASE_URL_SYNC) -f db/seeds/sample_venues.sql
+	@for f in db/seeds/*.sql; do \
+		echo "Seeding $$f..."; \
+		if command -v psql >/dev/null 2>&1; then \
+			psql "$${DATABASE_URL_SYNC:-postgresql://cr:cr_dev@localhost:5433/concertradar}" \
+				-q -v ON_ERROR_STOP=1 -f $$f; \
+		else \
+			docker compose exec -T postgres psql -U cr -d concertradar -q -v ON_ERROR_STOP=1 < $$f; \
+		fi; \
+	done
+
+# A demo account whose follows exercise the live alert path. GATEWAY defaults to local.
+demo:
+	uv run scripts/seed_demo.py --gateway $(or $(GATEWAY),http://localhost:8000)
 
 dev-gateway:
 	cd services/gateway && uv run uvicorn src.main:app --reload --port 8000
