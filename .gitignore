@@ -29,3 +29,10 @@ htmlcov/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Terraform (state is local and holds account details; never commit it)
+.terraform/
+*.tfstate*
+*.tfplan
+tfplan
+*.tfvars
