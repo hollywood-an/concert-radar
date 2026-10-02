@@ -14,4 +14,5 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://cr:cr_dev@localhost:5433/concertradar"
     kafka_bootstrap_servers: str = "localhost:19092"
+    health_port: int = 8084
     digest_hour_utc: int = 14

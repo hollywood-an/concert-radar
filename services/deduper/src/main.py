@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from src.config import Settings
 from src.handler import process_discovered
+from src.health import start_health_server
 from src.producer import DeduperProducer
 from src.schemas import DedupedEvent, DiscoveredEvent, StatusChange
 from src.telemetry import setup_telemetry
@@ -45,12 +46,17 @@ async def run(stop_after: int | None = None) -> int:
         auto_offset_reset="earliest",
     )
     producer = DeduperProducer(settings.kafka_bootstrap_servers)
+    consumer_started = asyncio.Event()
+    health_server = await start_health_server(settings.health_port, engine, consumer_started)
     await consumer.start()
+    consumer_started.set()
     await producer.start()
     try:
         logger.info("consuming", topic=EVENTS_DISCOVERED_TOPIC)
         return await consume_loop(consumer, producer, engine, stop_after)
     finally:
+        health_server.close()
+        await health_server.wait_closed()
         await consumer.stop()
         await producer.stop()
         await engine.dispose()

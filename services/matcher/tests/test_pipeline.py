@@ -21,6 +21,8 @@ async def test_new_show_and_follow_match_but_rescrape_does_not(
     """A newly announced show and a follow each propose the match; a re-scrape proposes none."""
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap)
+    # Ephemeral port: a consumer running locally may already hold the default one.
+    monkeypatch.setenv("HEALTH_PORT", "0")
 
     event_id, venue_id, artist_id = await create_event(db_engine, artist_name="Phoebe Bridgers")
     user_id = await create_user(db_engine, "fan@example.com", follows=("Phoebe Bridgers",))

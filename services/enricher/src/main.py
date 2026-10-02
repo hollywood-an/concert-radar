@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from src.config import Settings
 from src.handler import process_deduped
+from src.health import start_health_server
 from src.musicbrainz import MusicBrainzClient
 from src.producer import EnricherProducer
 from src.schemas import DedupedEvent, EnrichedEvent
@@ -57,12 +58,17 @@ async def run(
         auto_offset_reset="earliest",
     )
     producer = EnricherProducer(settings.kafka_bootstrap_servers)
+    consumer_started = asyncio.Event()
+    health_server = await start_health_server(settings.health_port, engine, consumer_started)
     await consumer.start()
+    consumer_started.set()
     await producer.start()
     try:
         logger.info("consuming", topic=EVENTS_DEDUPED_TOPIC, spotify_enabled=spotify.enabled)
         return await consume_loop(consumer, producer, engine, mb, spotify, stop_after)
     finally:
+        health_server.close()
+        await health_server.wait_closed()
         await consumer.stop()
         await producer.stop()
         await mb.aclose()

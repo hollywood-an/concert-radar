@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from src.config import Settings
 from src.digest import daily_digests
 from src.handler import process_match, process_status_change
+from src.health import start_health_server
 from src.producer import NotifierProducer
 from src.schemas import MatchProposed, StatusChange
 from src.telemetry import setup_telemetry
@@ -49,7 +50,10 @@ async def run(stop_after: int | None = None) -> int:
         auto_offset_reset="earliest",
     )
     producer = NotifierProducer(settings.kafka_bootstrap_servers)
+    consumer_started = asyncio.Event()
+    health_server = await start_health_server(settings.health_port, engine, consumer_started)
     await consumer.start()
+    consumer_started.set()
     await producer.start()
     digest_task = asyncio.create_task(daily_digests(engine, producer, settings.digest_hour_utc))
     try:
@@ -60,6 +64,8 @@ async def run(stop_after: int | None = None) -> int:
         )
         return await consume_loop(consumer, engine, stop_after)
     finally:
+        health_server.close()
+        await health_server.wait_closed()
         digest_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await digest_task

@@ -61,6 +61,8 @@ async def test_consume_write_publish_roundtrip(
     """Three discovered messages become DB rows plus deduped and status-changed messages."""
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap)
+    # Ephemeral port: a consumer running locally may already hold the default one.
+    monkeypatch.setenv("HEALTH_PORT", "0")
 
     on_sale = make_discovered(external_id="tm-e2e-1", title="Roundtrip Show", status="on_sale")
     cancelled = make_discovered(external_id="tm-e2e-1", title="Roundtrip Show", status="cancelled")
