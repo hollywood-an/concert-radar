@@ -58,3 +58,10 @@ lint:
 		(cd services/$$s && uv run ruff check . && uv run ruff format --check . && uv run mypy .) || exit 1; \
 	done
 	cd web && pnpm exec tsc --noEmit && pnpm lint
+
+.PHONY: bucket
+
+# Creates the dev MinIO bucket the scraper archives raw Ticketmaster pages into.
+bucket:
+	docker compose exec -T minio mc alias set local http://localhost:9000 minioadmin minioadmin
+	docker compose exec -T minio mc mb --ignore-existing local/concert-radar
