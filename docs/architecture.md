@@ -1,8 +1,8 @@
 # Architecture
 
 Concert Radar finds concerts near a user by artists they follow and ranks the rest by taste.
-Six Python services cooperate through Kafka (Redpanda) topics and one Postgres database;
-a Next.js app talks only to the gateway. Decisions behind this shape are in [`adr/`](adr/).
+Seven Python services cooperate through Kafka (Redpanda) topics, one gRPC call, and one
+Postgres database; a Next.js app talks only to the gateway. Decisions behind this shape are in [`adr/`](adr/).
 
 ## System
 
@@ -23,8 +23,9 @@ flowchart LR
     web[Next.js web app] -- REST + WebSocket --> gateway
     gateway -- users.taste_updated --> matcher
     matcher -- matches.proposed --> gateway
+    gateway -- gRPC GetRecommendations --> recommender
 
-    deduper & enricher & matcher & notifier & gateway --> PG[(Postgres<br/>PostGIS + pgvector)]
+    deduper & enricher & matcher & notifier & gateway & recommender --> PG[(Postgres<br/>PostGIS + pgvector)]
     notifier --> mail[daily digest email]
 ```
 
@@ -35,8 +36,9 @@ flowchart LR
 | `enricher` | Resolves each artist against MusicBrainz (1 req/s, retried on 503) and optionally Spotify, then embeds its genres with `all-MiniLM-L6-v2` (384 dimensions) so artists live in a shared taste space. |
 | `matcher` | Decides who hears about what: a match needs an artist the user follows on the lineup of an upcoming show inside their radius ([ADR 006](adr/006-alert-rules.md)). Triggered by newly announced shows and by follows or home-area changes. |
 | `notifier` | Queues matches and change notices, then sends one digest per user per day at 14:00 UTC. |
-| `gateway` | FastAPI REST + WebSocket API: dev sign-in (JWT), ranked feed, search, follows, settings, event and artist pages, and a live push of new matches. |
-| `web` | Next.js 14, TypeScript, Redux Toolkit: feed, clustered map, filters, event and artist pages, settings with a map picker. |
+| `recommender` | gRPC server (`recommender.v1.RecommenderService`): nearby shows by artists the user doesn't follow yet, ranked by taste and spread across genres. Backs `GET /discover`. |
+| `gateway` | FastAPI REST + WebSocket API: dev sign-in (JWT), ranked feed, discovery, search, follows, settings with address search, event and artist pages, and a live push of new matches. |
+| `web` | Next.js 14, TypeScript, Redux Toolkit: feed with a Discover strip, clustered map, filters, event and artist pages, settings with a map picker and address search. |
 
 ## Ranking
 
@@ -50,6 +52,18 @@ score = 0.7 × cosine_similarity(user taste, artist genres) + 0.3 × e^(−days 
 A user's taste vector is the average embedding of the artists they follow, recomputed on
 every follow (`update_user_taste_embedding`); with no follows the score is a neutral 0.5.
 Artist pages list the six nearest artists by the same embedding, served by an HNSW index.
+
+**Discovery** (the recommender, behind `GET /discover`) answers a different question: which
+artists the user doesn't follow yet are worth a look. It takes each unfollowed headliner's
+soonest upcoming show in range, skips dismissed shows, and ranks by cosine similarity alone.
+To keep the list from being ten shades of one genre, at most two shows per primary genre come
+first; the rest follow, so a small market still fills the list. The gateway calls it over gRPC
+with a 2-second deadline and answers 503 if it's down or late, and the web app hides the strip
+rather than waiting.
+
+The contract is `proto/recommender/v1/recommender.proto`. CI runs `buf lint`, `buf format`,
+and `buf breaking` against `main`, and regenerates the Python code (`proto/generate.sh`,
+grpcio-tools + mypy-protobuf) to fail if the committed `src/gen/` copies are stale.
 
 ## Event flows
 
@@ -161,6 +175,7 @@ flowchart LR
     sched[EventBridge Scheduler<br/>every 6 h] -- SSM Run Command --> host
     subgraph host [EC2 t3a.medium · Docker Compose]
         caddy[Caddy<br/>Let's Encrypt] --> webc[web] & gw[gateway] & jg[Jaeger UI]
+        gw -- gRPC --> rec[recommender]
         workers[deduper · enricher<br/>matcher · notifier] --- rp[Redpanda] & db[(Postgres)]
     end
     host -- pulls images --> ECR
@@ -183,12 +198,15 @@ closed; operators use SSM). See [`deploy/README.md`](../deploy/README.md) and
 - **Polite upstreams.** MusicBrainz is throttled to 1 request/second and 503s are retried with
   backoff; Ticketmaster 429s are retried the same way.
 - **Health.** Every long-running service serves `/healthz` and `/readyz` (database reachable,
-  consumer started); the production stack waits on them during deploys.
+  consumer started or gRPC serving); the production stack waits on them during deploys.
+- **Deadlines.** The gateway gives the recommender 2 seconds; a slow or missing recommender
+  costs the Discover strip, never the feed. Nominatim (address search) is limited to one
+  request a second across the gateway, with answers cached.
 
 ## Observability
 
-OpenTelemetry traces cross service and Kafka boundaries: producers inject the trace context
-into message headers and consumers continue it, so one trace follows a show from the scrape
+OpenTelemetry traces cross service, Kafka, and gRPC boundaries: producers inject the trace
+context into message headers (or gRPC metadata) and consumers continue it, so one trace follows a show from the scrape
 through to the matcher (or a follow from the HTTP request to the queued alert). Logs are JSON
 from `structlog` with `trace_id`, `span_id`, and `service_name` on every line. Jaeger runs in
 the stack; in production its UI is behind basic auth.
@@ -196,8 +214,9 @@ the stack; in production its UI is behind basic auth.
 ## Testing
 
 - Python services: integration tests against real Postgres (the production image), Redpanda,
-  and MinIO through testcontainers; HTTP calls to MusicBrainz, Spotify, and Ticketmaster go
-  through `httpx` mock transports.
+  and MinIO through testcontainers; HTTP calls to MusicBrainz, Spotify, Ticketmaster, and
+  Nominatim go through `httpx` mock transports. The recommender is tested over a real gRPC
+  channel, and the gateway's `/discover` against an in-process gRPC server.
 - Web: Vitest against the real Redux store and API client, with HTTP intercepted by MSW.
 - CI runs ruff, `mypy --strict`, and every suite on each pull request, builds and smoke-tests
   every production image, and validates the Terraform; `main` only accepts green pull requests.
@@ -211,7 +230,7 @@ the stack; in production its UI is behind basic auth.
 | Drizzle ORM in Next.js API routes | Web calls the gateway directly | [ADR 003](adr/003-gateway-is-the-api.md) |
 | Kubernetes + Kustomize | One EC2 host, Docker Compose | [ADR 005](adr/005-single-host-compose.md) |
 | Alerts above a score threshold, quiet hours | Followed artists only, daily digest | [ADR 006](adr/006-alert-rules.md) |
-| Protobuf in `proto/` for every contract | JSON + Pydantic on Kafka | [ADR 007](adr/007-json-messages.md) |
+| Protobuf in `proto/` for every contract | JSON + Pydantic on Kafka; protobuf for the gRPC call | [ADR 007](adr/007-json-messages.md) |
 | Mapbox GL JS | MapLibre GL with OpenStreetMap tiles | No API key or account needed |
 | Ticketmaster DMA 249 | DMA 259 | 249 is Chicago; 259 is Columbus, OH |
 | SES email | Logged email | SES sandbox only delivers to verified addresses |

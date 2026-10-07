@@ -6,6 +6,7 @@ import os
 import structlog
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.grpc import GrpcAioInstrumentorClient
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -36,6 +37,8 @@ def configure_telemetry(service_name: str) -> None:
     provider = TracerProvider(resource=Resource.create({"service.name": service_name}))
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
     trace.set_tracer_provider(provider)
+    # Calls to the recommender carry the trace context in gRPC metadata.
+    GrpcAioInstrumentorClient().instrument()  # type: ignore[no-untyped-call]
 
     structlog.configure(
         processors=[

@@ -28,19 +28,22 @@ flowchart LR
     web[Next.js app] <-- REST + WebSocket --> gateway
     gateway --> K
     K -- new matches --> gateway
-    deduper & enricher & matcher & notifier & gateway --- PG[(Postgres<br/>PostGIS + pgvector)]
+    gateway -- gRPC --> recommender
+    deduper & enricher & matcher & notifier & gateway & recommender --- PG[(Postgres<br/>PostGIS + pgvector)]
 ```
 
-- **Six Python microservices** (FastAPI, aiokafka) communicate over **9 Kafka topics**
-  (Redpanda). A batch scraper publishes shows; the **deduper** merges duplicate listings
-  across sources; the **enricher** resolves artists on MusicBrainz and embeds their genres
-  with `all-MiniLM-L6-v2`; the **matcher** finds who should hear about each show; the
-  **notifier** sends one digest a day; the **gateway** serves the app over REST and pushes
-  new matches over a WebSocket.
+- **Seven Python microservices** (FastAPI, aiokafka, gRPC) communicate over **9 Kafka
+  topics** (Redpanda) and one **gRPC** call. A batch scraper publishes shows; the **deduper**
+  merges duplicate listings across sources; the **enricher** resolves artists on MusicBrainz
+  and embeds their genres with `all-MiniLM-L6-v2`; the **matcher** finds who should hear
+  about each show; the **notifier** sends one digest a day; the **recommender** picks shows
+  by artists you don't follow yet; the **gateway** serves the app over REST and pushes new
+  matches over a WebSocket.
 - **Ranking:** a user's taste is the average embedding of the artists they follow. The feed
   scores every show inside their travel radius (PostGIS) with
   `0.7 × cosine similarity + 0.3 × recency`, and artist pages find similar artists through an
-  HNSW index (pgvector).
+  HNSW index (pgvector). The **Discover** strip ranks unfollowed artists' nearby shows by
+  taste, at most two per genre before a genre repeats.
 - **Alerts:** only for artists you follow, deduplicated per user and show, batched into a
   daily digest, with follow-up notices if a show you were told about is cancelled.
 
@@ -57,17 +60,23 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
 - **Event-driven and idempotent.** Every consumer commits offsets after handling a message
   and every write is an upsert, so replays are safe; malformed messages are skipped, anything
   unexpected crashes the consumer so it restarts from its last committed offset.
-- **CI/CD on every pull request.** GitHub Actions runs ruff, `mypy --strict`, and **175 tests**
-  (149 Python integration tests against real Postgres, Redpanda, and MinIO via testcontainers,
-  plus 26 Vitest tests), builds and smoke-tests all 8 production images, and validates the
+- **CI/CD on every pull request.** GitHub Actions runs ruff, `mypy --strict`, and **203 tests**
+  (175 Python integration tests against real Postgres, Redpanda, and MinIO via testcontainers,
+  plus 28 Vitest tests), builds and smoke-tests all 9 production images, and validates the
   Terraform. `main` only accepts green pull requests.
+- **Contract-first gRPC.** The recommender's API is defined in
+  [`proto/`](proto/recommender/v1/recommender.proto); CI runs `buf lint` and `buf breaking`
+  against `main`, and regenerates the typed Python stubs to catch stale code. The gateway
+  calls it with a 2-second deadline and degrades to a 503 (the app hides the strip) instead
+  of slowing the page.
 - **Deployed on AWS with Terraform.** One EC2 host runs the stack with Docker Compose behind
   Caddy (HTTPS). Merging to `main` builds the images, pushes them to **ECR**, and rolls the
   host with **SSM Run Command**: GitHub assumes an IAM role through **OIDC**, so no AWS key is
   stored anywhere and the host has no SSH. **EventBridge Scheduler** runs the scraper every six
   hours; raw API responses are archived to **S3**. See [`deploy/`](deploy/README.md).
-- **Observable.** OpenTelemetry traces across HTTP and Kafka hops, JSON logs with trace ids,
-  and `/healthz` + `/readyz` on every service, used by the deploy to wait for a healthy stack.
+- **Observable.** OpenTelemetry traces across HTTP, Kafka, and gRPC hops, JSON logs with
+  trace ids, and `/healthz` + `/readyz` on every service, used by the deploy to wait for a
+  healthy stack.
 - **Measured.** A k6 load test holds `GET /feed` (a PostGIS radius join scored with pgvector
   per request) at **p95 97 ms, 450 requests/s, 0 errors** with 20 concurrent users on a
   laptop.
@@ -76,7 +85,7 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
 
 | Area | Tools |
 |---|---|
-| Backend | Python 3.12, FastAPI, aiokafka, SQLAlchemy 2 (async), Pydantic v2, structlog |
+| Backend | Python 3.12, FastAPI, gRPC (grpcio, protobuf, buf), aiokafka, SQLAlchemy 2 (async), Pydantic v2, structlog |
 | Data | PostgreSQL 16, PostGIS, pgvector (HNSW), pg_trgm, Redpanda (Kafka API), S3 |
 | ML | sentence-transformers `all-MiniLM-L6-v2` (CPU-only PyTorch) |
 | Frontend | Next.js 14, TypeScript (strict), Redux Toolkit, Tailwind CSS, MapLibre GL |
@@ -92,7 +101,7 @@ cp .env.example .env      # works as-is; add a Ticketmaster key to scrape live d
 make infra                # Postgres, Redpanda, MinIO, Jaeger
 make migrate topics bucket
 make seed                 # sample artists and venues (optional)
-make dev                  # gateway, consumers, and the web app on http://localhost:3000
+make dev                  # gateway, consumers, recommender, and the web app on http://localhost:3000
 
 # Publish a saved Ticketmaster response through the pipeline (no API key needed):
 cd services/scraper-ticketmaster && uv run python -m src.main --fixture tests/fixtures/ticketmaster_columbus.json
@@ -106,6 +115,7 @@ re-rank. Traces are at http://localhost:16686.
 | `make test` | Every Python suite (testcontainers) and the web tests |
 | `make lint` | ruff, ruff format, `mypy --strict`, tsc, ESLint |
 | `make loadtest` | k6 against `GET /feed` (`API_URL=...` for another host) |
+| `make proto` | Regenerate the gRPC code after editing `proto/` (`make proto-lint` runs buf) |
 | `make demo` | Seed a demo account through the public API |
 
 To rehearse the production stack (HTTPS via Caddy, every image built locally), see
@@ -114,7 +124,8 @@ To rehearse the production stack (HTTPS via Caddy, every image built locally), s
 ## Repository layout
 
 ```
-services/   gateway, scraper-ticketmaster, deduper, enricher, matcher, notifier
+services/   gateway, scraper-ticketmaster, deduper, enricher, matcher, notifier, recommender
+proto/      protobuf contracts (gRPC) and the code generator
 web/        Next.js app
 db/         append-only SQL migrations, migrate.sh, dev seeds
 deploy/     production Compose stack, Caddyfile, deploy scripts

@@ -12,6 +12,7 @@ services:
   enricher: { build: ../services/enricher }
   matcher: { build: ../services/matcher }
   notifier: { build: ../services/notifier }
+  recommender: { build: ../services/recommender }
   scraper: { build: ../services/scraper-ticketmaster }
   web:
     build:

@@ -1,0 +1,10 @@
+# Lint and breaking-change rules for every contract in proto/. CI runs `buf lint`,
+# `buf format`, and `buf breaking` against main, so a field can't be renumbered or
+# removed without a new package version.
+version: v2
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

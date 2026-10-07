@@ -27,6 +27,7 @@ jobs:
           - { name: enricher, context: services/enricher, python: true }
           - { name: matcher, context: services/matcher, python: true }
           - { name: notifier, context: services/notifier, python: true }
+          - { name: recommender, context: services/recommender, python: true }
           - { name: web, context: web, python: false }
           - { name: postgres, context: infra/postgres, python: false }
     steps:

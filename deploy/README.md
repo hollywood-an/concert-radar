@@ -9,7 +9,7 @@ HTTPS for `<ip>.sslip.io` (web), `api.<ip>.sslip.io` (REST + WebSocket), and
 
 1. A commit lands on `main` and **CI** passes.
 2. The **Deploy** workflow (`.github/workflows/deploy.yml`) assumes the deploy role through
-   GitHub's OIDC token, so the repo stores no AWS keys. It builds the 8 images for that commit
+   GitHub's OIDC token, so the repo stores no AWS keys. It builds the 9 images for that commit
    (linux/amd64) and pushes them to ECR, tagged with the commit sha.
 3. It sends `deploy.sh` to the host with **SSM Run Command** (no SSH; port 22 is closed). On
    the host, `deploy.sh`:
