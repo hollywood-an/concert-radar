@@ -125,6 +125,12 @@ jobs:
         run: |
           script=$(cat <<EOF
           set -euo pipefail
+          # Run Command starts scripts without HOME, which git and the AWS CLI expect.
+          export HOME=/root
+          # The first deploy can arrive while first boot is still installing Docker and git.
+          # cloud-init exits non-zero for mere warnings, so check for Docker instead.
+          cloud-init status --wait >/dev/null || true
+          command -v docker >/dev/null || { echo "Docker is missing; see /var/log/cloud-init-output.log" >&2; exit 1; }
           mkdir -p /opt/concert-radar && cd /opt/concert-radar
           [ -d .git ] || { git init -q && git remote add origin $REPO_URL; }
           git fetch -q --depth 1 origin $SHA
