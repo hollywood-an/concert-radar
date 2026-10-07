@@ -71,6 +71,27 @@ class ArtistSummary(BaseModel):
     followed: bool
 
 
+class UpcomingShow(BaseModel):
+    """A future show on an artist's page, with the viewer's distance and dismissal state."""
+
+    event_id: UUID
+    title: str | None
+    starts_at: datetime
+    venue_name: str
+    venue_city: str | None
+    price_min_cents: int | None
+    price_max_cents: int | None
+    distance_m: float | None
+    dismissed: bool
+
+
+class ArtistDetail(ArtistSummary):
+    """Response of GET /artists/{id}: the artist, its upcoming shows, and similar artists."""
+
+    upcoming: list[UpcomingShow]
+    similar: list[ArtistSummary]
+
+
 class FollowRequest(BaseModel):
     """Body of POST /follows."""
 
