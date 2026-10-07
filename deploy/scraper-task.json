@@ -1,0 +1,38 @@
+{
+  "family": "concert-radar-scraper",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/concert-radar-scraper-execution",
+  "taskRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/concert-radar-scraper-task",
+  "containerDefinitions": [
+    {
+      "name": "scraper",
+      "image": "${ECR_REGISTRY}/concert-radar/scraper-ticketmaster:${IMAGE_TAG}",
+      "essential": true,
+      "environment": [
+        { "name": "KAFKA_BOOTSTRAP_SERVERS", "value": "${HOST_PRIVATE_IP}:19092" },
+        { "name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "http://${HOST_PRIVATE_IP}:4317" },
+        { "name": "TICKETMASTER_DMA_ID", "value": "259" },
+        { "name": "S3_BUCKET", "value": "${RAW_BUCKET}" },
+        { "name": "AWS_DEFAULT_REGION", "value": "${AWS_REGION}" }
+      ],
+      "secrets": [
+        {
+          "name": "TICKETMASTER_API_KEY",
+          "valueFrom": "arn:aws:ssm:${AWS_REGION}:${ACCOUNT_ID}:parameter/concert-radar/ticketmaster_api_key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/concert-radar-scraper",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "scraper"
+        }
+      }
+    }
+  ]
+}
