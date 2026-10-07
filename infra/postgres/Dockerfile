@@ -3,7 +3,7 @@
 # published for amd64 and arm64) and add PostGIS from the PGDG apt repo it already has.
 # The previous base, postgis/postgis:16-3.4, is Debian bullseye, which PGDG no longer
 # serves, so it can no longer be built.
-FROM pgvector/pgvector:0.8.6-pg16-bookworm
+FROM pgvector/pgvector:0.8.7-pg16-bookworm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
