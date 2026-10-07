@@ -166,3 +166,11 @@ class EventDetail(BaseModel):
     image_url: str | None
     venue: VenueOut
     artists: list[EventArtistOut]
+
+
+class GeocodeResult(BaseModel):
+    """One match from GET /geocode: a place name and its coordinates."""
+
+    label: str
+    lat: float
+    lon: float

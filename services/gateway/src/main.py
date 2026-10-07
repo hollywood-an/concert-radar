@@ -16,7 +16,7 @@ from src import ws
 from src.config import get_settings
 from src.deps import get_sessionmaker
 from src.kafka import get_taste_publisher
-from src.routes import artists, auth, events, feed, follows, users
+from src.routes import artists, auth, events, feed, follows, geocode, users
 from src.telemetry import configure_telemetry
 
 configure_telemetry("gateway")
@@ -48,6 +48,7 @@ app.include_router(events.router)
 app.include_router(artists.router)
 app.include_router(follows.router)
 app.include_router(users.router)
+app.include_router(geocode.router)
 app.include_router(ws.router)
 
 

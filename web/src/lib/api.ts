@@ -7,6 +7,7 @@ import type {
   EventDetail,
   FeedFilters,
   FeedPage,
+  GeocodeResult,
   User,
   UserUpdate,
 } from "@/types";
@@ -96,6 +97,11 @@ export function searchArtists(token: string, q: string): Promise<ArtistSummary[]
 
 export function getArtist(token: string, artistId: string): Promise<ArtistDetail> {
   return request<ArtistDetail>(`/artists/${encodeURIComponent(artistId)}`, {}, token);
+}
+
+export function geocode(token: string, q: string): Promise<GeocodeResult[]> {
+  const params = new URLSearchParams({ q });
+  return request<GeocodeResult[]>(`/geocode?${params.toString()}`, {}, token);
 }
 
 export function getEvent(eventId: string): Promise<EventDetail> {
