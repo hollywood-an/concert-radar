@@ -1,8 +1,9 @@
 # AWS demo environment
 
-One EC2 host in the default VPC runs the whole stack with Docker Compose.
-GitHub Actions builds images, pushes them to ECR, and rolls out through SSM
-Run Command. There is no SSH: port 22 is closed and the host has no key pair.
+One EC2 host in the default VPC runs the stack with Docker Compose, and the
+Ticketmaster scraper runs as a scheduled ECS Fargate task beside it. GitHub
+Actions builds images, pushes them to ECR, and rolls out through SSM Run
+Command. There is no SSH: port 22 is closed and the host has no key pair.
 
 This configuration creates:
 
@@ -13,7 +14,10 @@ This configuration creates:
 - the private bucket `concert-radar-raw-<account_id>` (`raw/` expires after 90 days)
 - the host's instance role, the GitHub OIDC provider, and the deploy role
   that only `repo:hollywood-an/concert-radar:environment:production` can assume
-- an EventBridge Scheduler schedule that runs the scraper on the host every 6 hours
+- an ECS cluster for the scraper task, its execution and task roles, a
+  CloudWatch log group (14 days), and a security group the host accepts Kafka
+  (19092) and OTLP (4317) traffic from; the internet still reaches only 80 and 443
+- an EventBridge Scheduler schedule that starts the scraper on Fargate every 6 hours
 - optionally, a 40 USD/month budget alert
 
 ## Before the first apply
@@ -83,9 +87,13 @@ resolves to that IP without any DNS setup.
   from ECR with the instance role; there is no `docker login`.
 - Open a shell with `aws ssm start-session --target <instance_id>` (needs the
   Session Manager plugin for the AWS CLI).
-- The scraper runs every 6 hours as
-  `/opt/concert-radar/deploy/compose.sh --profile jobs run --rm scraper`; each
-  run shows up in `aws ssm list-commands --instance-id <instance_id>`.
+- Every deploy registers a new revision of the `concert-radar-scraper` task
+  definition from `deploy/scraper-task.json` with that commit's image; the
+  schedule names the family without a revision, so it runs the latest. Runs show
+  up in `aws ecs list-tasks --cluster concert-radar --desired-status STOPPED`,
+  logs in the `/ecs/concert-radar-scraper` log group. Start one by hand with
+  `aws ecs run-task` and the schedule's network settings, or on the host with
+  `/opt/concert-radar/deploy/compose.sh --profile jobs run --rm scraper`.
 - Later applies never replace the host: a newer AMI or an edited first-boot
   script is ignored. `terraform apply -replace=aws_instance.host` builds a fresh
   host, and the database on the old root volume is lost with it.
@@ -93,7 +101,9 @@ resolves to that IP without any DNS setup.
 ## Cost and teardown
 
 About $1.12/day in us-east-2: the instance (~$0.90), the public IPv4 address
-($0.12), the 30 GB volume (~$0.08), and a few cents of ECR and S3 storage.
+($0.12), the 30 GB volume (~$0.08), and a few cents of ECR and S3 storage. The
+Fargate scraper (0.25 vCPU, 0.5 GB, about two minutes four times a day) costs
+well under a cent a day.
 CPU credits are `standard`, so the instance cannot run up surplus-credit charges.
 
 Stopping the instance (`aws ec2 stop-instances --instance-ids <instance_id>`)
@@ -101,5 +111,7 @@ cuts the bill to about $0.20/day for the volume and the address. The Elastic IP
 stays allocated, so the URL is the same after `start-instances`.
 
 `terraform destroy` deletes everything above, including every image in ECR and
-every object in the raw bucket. It leaves the four `/concert-radar/*` SSM
+every object in the raw bucket. Scraper task definition revisions are registered
+outside Terraform; deregister them with `aws ecs deregister-task-definition` if
+you want the family gone. It leaves the four `/concert-radar/*` SSM
 parameters, which were created outside Terraform; delete them by hand.

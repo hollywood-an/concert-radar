@@ -6,6 +6,10 @@
 #   docker compose -f deploy/compose.prod.yml -f deploy/compose.local.yml \
 #     --env-file deploy/local.env up -d --build --wait
 services:
+  # The Kafka and OTLP ports exist for the Fargate scraper; locally they would collide
+  # with the development stack's.
+  redpanda: { ports: !reset [] }
+  jaeger: { ports: !reset [] }
   postgres: { build: ../infra/postgres }
   gateway: { build: ../services/gateway }
   deduper: { build: ../services/deduper }

@@ -4,11 +4,14 @@
 #   compose.sh --profile ops run --rm migrate    # apply new db migrations
 #   compose.sh --profile ops run --rm topics     # create Kafka topics (idempotent)
 #   compose.sh up -d --wait                      # start or update everything
-#   compose.sh --profile jobs run --rm scraper   # one Ticketmaster scrape (EventBridge
-#                                                # Scheduler runs this every 6 hours)
+#   compose.sh --profile jobs run --rm scraper   # one Ticketmaster scrape on the host
+#                                                # (the first deploy runs this; the
+#                                                # schedule runs it on Fargate)
 #
-# Only Caddy publishes ports (80/443). Long-running services restart on failure because
-# the Kafka consumers deliberately crash on unexpected errors and resume from their last
+# Caddy publishes 80/443 to the internet. Redpanda (19092) and Jaeger's OTLP port (4317)
+# are published for the Fargate scraper, and the security group admits those only from
+# the scraper's own security group. Long-running services restart on failure because the
+# Kafka consumers deliberately crash on unexpected errors and resume from their last
 # committed offset.
 name: concert-radar-prod
 
@@ -52,8 +55,10 @@ services:
       - --smp 1
       - --memory 512M
       - --overprovisioned
-      - --kafka-addr 0.0.0.0:9092
-      - --advertise-kafka-addr redpanda:9092
+      # internal: the services in this stack; external: the Fargate scraper over the VPC.
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://${HOST_PRIVATE_IP:?}:19092
+    ports: ["19092:19092"]
     volumes: [redpanda_data:/var/lib/redpanda/data]
     mem_limit: 1g
     healthcheck:
@@ -68,6 +73,7 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
       MEMORY_MAX_TRACES: "10000"
+    ports: ["4317:4317"]
     mem_limit: 384m
 
   gateway:

@@ -21,7 +21,10 @@ Jaeger) that comfortably fit in 4 GB. Options considered:
 ## Decision
 
 One t3a.medium (x86, matching the linux/amd64 images CI builds) runs `deploy/compose.prod.yml`. Terraform owns the host, its IAM role, ECR, S3, the
-GitHub OIDC deploy role, and an EventBridge Scheduler that runs the scraper every six hours.
+GitHub OIDC deploy role, and an EventBridge Scheduler that starts the scraper every six hours
+as an ECS Fargate task: a batch job with nothing to keep running is the one piece that fits
+a serverless container, and it exercises ECS without moving the always-on services off the
+host.
 GitHub Actions builds images, pushes them to ECR tagged by commit, and rolls the host with SSM
 Run Command; there is no SSH and no long-lived AWS key anywhere. Caddy terminates HTTPS with
 Let's Encrypt certificates for `<ip>.sslip.io` hostnames, so no domain is needed.

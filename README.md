@@ -72,8 +72,9 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
 - **Deployed on AWS with Terraform.** One EC2 host runs the stack with Docker Compose behind
   Caddy (HTTPS). Merging to `main` builds the images, pushes them to **ECR**, and rolls the
   host with **SSM Run Command**: GitHub assumes an IAM role through **OIDC**, so no AWS key is
-  stored anywhere and the host has no SSH. **EventBridge Scheduler** runs the scraper every six
-  hours; raw API responses are archived to **S3**. See [`deploy/`](deploy/README.md).
+  stored anywhere and the host has no SSH. **EventBridge Scheduler** starts the scraper as an
+  **ECS Fargate** task every six hours (each deploy registers its task definition); raw API
+  responses are archived to **S3**. See [`deploy/`](deploy/README.md).
 - **Observable.** OpenTelemetry traces across HTTP, Kafka, and gRPC hops, JSON logs with
   trace ids, and `/healthz` + `/readyz` on every service, used by the deploy to wait for a
   healthy stack.
@@ -89,7 +90,7 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
 | Data | PostgreSQL 16, PostGIS, pgvector (HNSW), pg_trgm, Redpanda (Kafka API), S3 |
 | ML | sentence-transformers `all-MiniLM-L6-v2` (CPU-only PyTorch) |
 | Frontend | Next.js 14, TypeScript (strict), Redux Toolkit, Tailwind CSS, MapLibre GL |
-| Infra | Docker, Docker Compose, Caddy, Terraform, AWS (EC2, ECR, S3, IAM, SSM, EventBridge) |
+| Infra | Docker, Docker Compose, Caddy, Terraform, AWS (EC2, ECS Fargate, ECR, S3, IAM, SSM, EventBridge Scheduler, CloudWatch Logs) |
 | Quality | GitHub Actions, pytest + testcontainers, Vitest + MSW, ruff, mypy, k6, OpenTelemetry + Jaeger |
 
 ## Run it locally

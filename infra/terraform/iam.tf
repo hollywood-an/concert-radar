@@ -1,5 +1,5 @@
-# Host instance role: SSM management, ECR pulls, the raw bucket, and the
-# /concert-radar/* parameters.
+# Host instance role: SSM management, ECR pulls, the raw bucket, the
+# /concert-radar/* parameters, and registering the scraper's task definition.
 
 data "aws_iam_policy_document" "ec2_assume" {
   statement {
@@ -54,6 +54,26 @@ data "aws_iam_policy_document" "host" {
       for name in ["jwt_secret", "postgres_password", "jaeger_password"] :
       "arn:aws:ssm:${var.region}:${local.account_id}:parameter/concert-radar/${name}"
     ]
+  }
+
+  # deploy.sh registers the scraper's task definition for each release (see ecs.tf).
+  # RegisterTaskDefinition has no resource-level permissions.
+  statement {
+    sid       = "RegisterScraperTask"
+    actions   = ["ecs:RegisterTaskDefinition"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "PassScraperRoles"
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.scraper_execution.arn, aws_iam_role.scraper_task.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
   }
 }
 

@@ -31,7 +31,7 @@ flowchart LR
 
 | Service | What it does |
 |---|---|
-| `scraper-ticketmaster` | Batch job: pages through the Discovery API for one market (Columbus), archives each raw page to S3, publishes one `events.discovered` per show. |
+| `scraper-ticketmaster` | Batch job (an ECS Fargate task in production): pages through the Discovery API for one market (Columbus), archives each raw page to S3, publishes one `events.discovered` per show. |
 | `deduper` | Upserts venues, events, and lineups idempotently; folds the same show listed by another source into one row (trigram title match, same venue, ±20 min, [ADR 004](adr/004-dedup-threshold.md)); publishes `events.deduped`, plus `events.status_changed` when a known show is cancelled or rescheduled. |
 | `enricher` | Resolves each artist against MusicBrainz (1 req/s, retried on 503) and optionally Spotify, then embeds its genres with `all-MiniLM-L6-v2` (384 dimensions) so artists live in a shared taste space. |
 | `matcher` | Decides who hears about what: a match needs an artist the user follows on the lineup of an upcoming show inside their radius ([ADR 006](adr/006-alert-rules.md)). Triggered by newly announced shows and by follows or home-area changes. |
@@ -172,20 +172,26 @@ flowchart LR
     CI -- merge to main --> deploy[Deploy workflow]
     deploy -- OIDC role, no stored keys --> ECR[(Amazon ECR)]
     deploy -- SSM Run Command --> host
-    sched[EventBridge Scheduler<br/>every 6 h] -- SSM Run Command --> host
+    sched[EventBridge Scheduler<br/>every 6 h] -- RunTask --> task[ECS Fargate<br/>scraper task]
+    task -- Kafka 19092 · OTLP 4317<br/>private network --> host
+    task -- raw pages --> S3
     subgraph host [EC2 t3a.medium · Docker Compose]
         caddy[Caddy<br/>Let's Encrypt] --> webc[web] & gw[gateway] & jg[Jaeger UI]
         gw -- gRPC --> rec[recommender]
         workers[deduper · enricher<br/>matcher · notifier] --- rp[Redpanda] & db[(Postgres)]
     end
-    host -- pulls images --> ECR
-    host -- raw pages --> S3[(S3)]
+    host & task -- pull images --> ECR
+    S3[(S3<br/>raw archive)]
     users((users)) -- HTTPS --> caddy
 ```
 
 Terraform (`infra/terraform`) creates the host, its IAM role, the ECR repositories, the S3
-bucket, the GitHub OIDC deploy role, and the scraper schedule; there is no SSH (port 22 is
-closed; operators use SSM). See [`deploy/README.md`](../deploy/README.md) and
+bucket, the GitHub OIDC deploy role, the ECS cluster and roles for the scraper task, and its
+schedule; there is no SSH (port 22 is closed; operators use SSM). The scraper's task
+definition lives in the repo (`deploy/scraper-task.json`) and every deploy registers a new
+revision with that commit's image; the schedule names the family without a revision, so it
+always runs what is deployed. The task reaches Redpanda through a second listener on the
+host's private address, which the host's security group opens only to the task's. See [`deploy/README.md`](../deploy/README.md) and
 [ADR 005](adr/005-single-host-compose.md).
 
 ## Reliability

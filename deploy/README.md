@@ -17,13 +17,17 @@ HTTPS for `<ip>.sslip.io` (web), `api.<ip>.sslip.io` (REST + WebSocket), and
      JWT secret, and Jaeger password on the first deploy (stored back in SSM, reused after);
    - writes `/opt/concert-radar/.env.deploy` (mode 600);
    - pulls the images, applies new database migrations, creates Kafka topics, and runs
-     `docker compose up -d --wait` until every service reports healthy.
+     `docker compose up -d --wait` until every service reports healthy;
+   - registers a new revision of the scraper's Fargate task definition
+     (`scraper-task.json`) with the same image tag;
    - on a database with no shows yet (the first deploy), runs one scrape, so the app has data
      without waiting six hours for the schedule.
 4. A smoke job checks `https://api.<host>/readyz` and the home page.
 
-**EventBridge Scheduler** runs the Ticketmaster scraper on the host every 6 hours
-(`compose.sh --profile jobs run --rm scraper`); each raw API page is archived to S3.
+**EventBridge Scheduler** starts the Ticketmaster scraper as an **ECS Fargate** task every
+6 hours. The task publishes to Redpanda and sends traces to Jaeger at the host's private
+address (a second Redpanda listener on 19092, OTLP on 4317, both reachable only from the
+scraper's security group), and archives each raw API page to S3 with its own task role.
 
 ## Setup (once, after `terraform apply`)
 
