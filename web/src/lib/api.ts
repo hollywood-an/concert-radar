@@ -1,8 +1,10 @@
 // Typed fetch wrapper for the gateway API.
 
 import type {
+  ArtistDetail,
   ArtistSummary,
   DevAuthResponse,
+  EventDetail,
   FeedFilters,
   FeedPage,
   User,
@@ -90,6 +92,14 @@ export function getFeed(
 export function searchArtists(token: string, q: string): Promise<ArtistSummary[]> {
   const params = new URLSearchParams({ q });
   return request<ArtistSummary[]>(`/artists/search?${params.toString()}`, {}, token);
+}
+
+export function getArtist(token: string, artistId: string): Promise<ArtistDetail> {
+  return request<ArtistDetail>(`/artists/${encodeURIComponent(artistId)}`, {}, token);
+}
+
+export function getEvent(eventId: string): Promise<EventDetail> {
+  return request<EventDetail>(`/events/${encodeURIComponent(eventId)}`);
 }
 
 export function listFollows(token: string): Promise<ArtistSummary[]> {

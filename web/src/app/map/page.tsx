@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import EventMap from "@/components/EventMap";
 import FilterDrawer, { activeFilterCount } from "@/components/FilterDrawer";
 import NavBar from "@/components/NavBar";
+import { SignInNotice } from "@/components/PageNotice";
 import { fetchEntireFeed } from "@/store/feedSlice";
 import { loadFollows } from "@/store/followsSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -12,7 +13,6 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 export default function MapPage() {
   const dispatch = useAppDispatch();
   const token = useAppSelector((state) => state.auth.token);
-  const status = useAppSelector((state) => state.auth.status);
   const { items, filters } = useAppSelector((state) => state.feed);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -24,14 +24,7 @@ export default function MapPage() {
   }, [token, dispatch, filters]);
 
   if (token === null) {
-    return (
-      <main className="mx-auto min-h-screen max-w-4xl p-6">
-        <NavBar />
-        <p className="mt-10 text-center text-sm text-slate-500">
-          {status === "idle" ? "Sign in on the Feed page to see the map." : "Loading…"}
-        </p>
-      </main>
-    );
+    return <SignInNotice purpose="see the map" />;
   }
 
   const filterCount = activeFilterCount(filters);

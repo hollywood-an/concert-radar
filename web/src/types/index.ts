@@ -68,3 +68,53 @@ export interface ArtistSummary {
   genres: string[];
   followed: boolean;
 }
+
+export interface Venue {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  location: Location;
+}
+
+export interface EventArtist {
+  id: string;
+  name: string;
+  image_url: string | null;
+  genres: string[];
+  billing: number; // 0 is the headliner
+}
+
+export interface EventDetail {
+  id: string;
+  title: string | null;
+  starts_at: string;
+  doors_at: string | null;
+  on_sale_at: string | null;
+  price_min_cents: number | null;
+  price_max_cents: number | null;
+  currency: string | null;
+  status: string;
+  source: string;
+  source_url: string | null;
+  image_url: string | null;
+  venue: Venue;
+  artists: EventArtist[];
+}
+
+export interface UpcomingShow {
+  event_id: string;
+  title: string | null;
+  starts_at: string;
+  venue_name: string;
+  venue_city: string | null;
+  price_min_cents: number | null;
+  price_max_cents: number | null;
+  distance_m: number | null; // null when the user has no home location
+  dismissed: boolean;
+}
+
+export interface ArtistDetail extends ArtistSummary {
+  upcoming: UpcomingShow[];
+  similar: ArtistSummary[];
+}

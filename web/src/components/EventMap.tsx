@@ -6,25 +6,11 @@ import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl";
 import { useCallback, useMemo, useRef } from "react";
 import Map, { Layer, MapRef, Popup, Source } from "react-map-gl/maplibre";
 
+import { formatDate } from "@/lib/format";
+import { OSM_STYLE } from "@/lib/mapStyle";
 import { eventSelected } from "@/store/mapSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { FeedItem } from "@/types";
-
-// Keyless OSM raster style (NEXT_PUBLIC_MAPBOX_TOKEN is unset in this repo). To move to
-// Mapbox later: render <Map> from react-map-gl/mapbox with a mapbox:// style + token.
-const OSM_STYLE = {
-  version: 8 as const,
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-  sources: {
-    osm: {
-      type: "raster" as const,
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
-};
 
 const COLUMBUS = { longitude: -82.9988, latitude: 39.9612, zoom: 10.5 };
 
@@ -145,13 +131,7 @@ export default function EventMap({ items, height = "70vh" }: EventMapProps) {
             <div className="p-1">
               <p className="text-sm font-semibold text-slate-900">{selected.artist_name}</p>
               <p className="text-xs text-slate-600">
-                {new Date(selected.starts_at).toLocaleString("en-US", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
+                {formatDate(selected.starts_at)}
                 <br />
                 {selected.venue_name}
                 {selected.venue_city ? `, ${selected.venue_city}` : ""}

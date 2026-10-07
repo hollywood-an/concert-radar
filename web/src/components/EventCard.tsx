@@ -1,9 +1,12 @@
 "use client";
 
-import FollowButton from "@/components/FollowButton";
+import Link from "next/link";
+
+import ArtistFollowButton from "@/components/ArtistFollowButton";
+import StatusBadge from "@/components/StatusBadge";
+import { formatDate, formatDistance, formatPrice } from "@/lib/format";
 import { dismissEvent } from "@/store/feedSlice";
-import { toggleFollow } from "@/store/followsSlice";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useAppDispatch } from "@/store/hooks";
 import type { FeedItem } from "@/types";
 
 interface EventCardProps {
@@ -11,45 +14,8 @@ interface EventCardProps {
   fresh?: boolean;
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatDistance(meters: number): string {
-  const miles = meters / 1609.34;
-  return miles < 0.1 ? "nearby" : `${miles.toFixed(1)} mi`;
-}
-
-function formatPrice(minCents: number | null, maxCents: number | null): string | null {
-  if (minCents === null && maxCents === null) {
-    return null;
-  }
-  const dollars = (cents: number) => `$${(cents / 100).toFixed(0)}`;
-  if (minCents !== null && maxCents !== null && minCents !== maxCents) {
-    return `${dollars(minCents)}–${dollars(maxCents)}`;
-  }
-  return dollars(minCents ?? maxCents ?? 0);
-}
-
-const STATUS_STYLES: Record<string, string> = {
-  on_sale: "bg-green-100 text-green-800",
-  announced: "bg-amber-100 text-amber-800",
-};
-
 export default function EventCard({ item, fresh = false }: EventCardProps) {
   const dispatch = useAppDispatch();
-  const followed = useAppSelector((state) =>
-    state.follows.artistIds.includes(item.artist_id),
-  );
-  const pending = useAppSelector((state) =>
-    state.follows.pendingToggles.includes(item.artist_id),
-  );
   const price = formatPrice(item.price_min_cents, item.price_max_cents);
 
   return (
@@ -79,20 +45,20 @@ export default function EventCard({ item, fresh = false }: EventCardProps) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="truncate text-lg font-semibold text-slate-900">
-              {item.artist_name}
+              <Link href={`/artist/${item.artist_id}`} className="hover:text-indigo-600">
+                {item.artist_name}
+              </Link>
             </h3>
             {item.title && item.title !== item.artist_name && (
-              <p className="truncate text-sm text-slate-500">{item.title}</p>
+              <p className="truncate text-sm text-slate-500">
+                <Link href={`/event/${item.event_id}`} className="hover:text-indigo-600">
+                  {item.title}
+                </Link>
+              </p>
             )}
           </div>
           <div className="flex flex-none items-center gap-2">
-            <FollowButton
-              followed={followed}
-              pending={pending}
-              onToggle={() =>
-                void dispatch(toggleFollow({ artistId: item.artist_id, followed }))
-              }
-            />
+            <ArtistFollowButton artistId={item.artist_id} />
             <button
               type="button"
               aria-label="Dismiss event"
@@ -107,7 +73,10 @@ export default function EventCard({ item, fresh = false }: EventCardProps) {
           </div>
         </div>
         <p className="mt-1 text-sm text-slate-600">
-          {formatDate(item.starts_at)} · {item.venue_name}
+          <Link href={`/event/${item.event_id}`} className="hover:text-indigo-600">
+            {formatDate(item.starts_at)}
+          </Link>{" "}
+          · {item.venue_name}
           {item.venue_city ? `, ${item.venue_city}` : ""}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -119,13 +88,7 @@ export default function EventCard({ item, fresh = false }: EventCardProps) {
               {price}
             </span>
           )}
-          <span
-            className={`rounded-full px-2.5 py-1 font-medium ${
-              STATUS_STYLES[item.status] ?? "bg-slate-100 text-slate-700"
-            }`}
-          >
-            {item.status.replace("_", " ")}
-          </span>
+          <StatusBadge status={item.status} />
           <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-700">
             score {item.score.toFixed(2)}
           </span>
