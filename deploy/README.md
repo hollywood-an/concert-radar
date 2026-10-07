@@ -18,6 +18,8 @@ HTTPS for `<ip>.sslip.io` (web), `api.<ip>.sslip.io` (REST + WebSocket), and
    - writes `/opt/concert-radar/.env.deploy` (mode 600);
    - pulls the images, applies new database migrations, creates Kafka topics, and runs
      `docker compose up -d --wait` until every service reports healthy.
+   - on a database with no shows yet (the first deploy), runs one scrape, so the app has data
+     without waiting six hours for the schedule.
 4. A smoke job checks `https://api.<host>/readyz` and the home page.
 
 **EventBridge Scheduler** runs the Ticketmaster scraper on the host every 6 hours

@@ -68,5 +68,14 @@ compose --profile ops run --rm migrate
 compose --profile ops run --rm topics
 compose up -d --wait --wait-timeout 600 --remove-orphans
 docker image prune -f >/dev/null
+
+# The schedule's first run fires while Terraform creates it, before anything is deployed,
+# and the next is six hours out; a fresh database gets one scrape now instead. A failed
+# scrape doesn't fail the deploy: the schedule retries it.
+shows=$(compose exec -T postgres psql -U cr -d concertradar -tAc "SELECT count(*) FROM events")
+if [ "$shows" = 0 ]; then
+  echo "no shows yet; running the first scrape"
+  compose --profile jobs run --rm scraper || echo "first scrape failed; the schedule will retry" >&2
+fi
 compose ps --format 'table {{.Service}}\t{{.Status}}'
 echo "deployed $IMAGE_TAG to https://$PUBLIC_HOST"
