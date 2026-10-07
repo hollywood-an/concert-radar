@@ -1,5 +1,7 @@
 # Weekly dependency updates, one grouped pull request per ecosystem and directory, so CI
-# tests each batch the same way it tests any other change.
+# tests each batch the same way it tests any other change. Major versions are left out:
+# they need code changes (Tailwind 4, TypeScript 6, a Next.js upgrade), so they are taken
+# deliberately rather than as a weekly bump.
 version: 2
 
 updates:
@@ -9,11 +11,15 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # pyproject.toml keeps its minimum versions; updates only move uv.lock.
+    versioning-strategy: lockfile-only
     open-pull-requests-limit: 6
     groups:
       python:
         update-types: [minor, patch]
     ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
       # torch comes from PyTorch's CPU-only index (see services/enricher/pyproject.toml);
       # bump it by hand so the lock keeps the +cpu build.
       - dependency-name: torch
@@ -27,12 +33,7 @@ updates:
       web:
         update-types: [minor, patch]
     ignore:
-      # Next.js and React majors need code changes; take them deliberately.
-      - dependency-name: next
-        update-types: [version-update:semver-major]
-      - dependency-name: react
-        update-types: [version-update:semver-major]
-      - dependency-name: react-dom
+      - dependency-name: "*"
         update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
