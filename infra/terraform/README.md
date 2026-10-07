@@ -48,7 +48,9 @@ Leave `budget_email` out to skip the budget. State is local
 (`terraform.tfstate`, gitignored). It holds no secrets but is the only record
 of what was created, so keep a copy.
 
-Put the outputs into the GitHub `production` environment as variables:
+Put the outputs into GitHub as **repository** variables. They must be repository
+variables, not `production` environment variables: the Deploy workflow's first job
+checks `INSTANCE_ID` before any job enters the environment, and skips while it is empty.
 
 | GitHub variable       | Terraform output  |
 | --------------------- | ----------------- |
@@ -63,7 +65,7 @@ Put the outputs into the GitHub `production` environment as variables:
 for pair in AWS_REGION=region AWS_DEPLOY_ROLE_ARN=deploy_role_arn \
   ECR_REGISTRY=ecr_registry INSTANCE_ID=instance_id \
   PUBLIC_HOST=public_host RAW_BUCKET=raw_bucket; do
-  gh variable set "${pair%%=*}" --env production --body "$(terraform output -raw "${pair#*=}")"
+  gh variable set "${pair%%=*}" --body "$(terraform output -raw "${pair#*=}")"
 done
 ```
 
