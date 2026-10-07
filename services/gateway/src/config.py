@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the API; a JSON list in the environment,
     # e.g. CORS_ORIGINS='["https://concert-radar.example"]'.
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Address search for the home-location picker (GET /geocode).
+    nominatim_url: str = "https://nominatim.openstreetmap.org"
 
 
 @lru_cache

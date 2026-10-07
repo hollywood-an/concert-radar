@@ -5,6 +5,12 @@ export interface Location {
   lon: number;
 }
 
+export interface GeocodeResult {
+  label: string;
+  lat: number;
+  lon: number;
+}
+
 export interface User {
   id: string;
   email: string;

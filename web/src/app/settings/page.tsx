@@ -81,7 +81,8 @@ function SettingsForm() {
           Home location
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Click the map or drag the pin to set where shows should be near.
+          Search for an address, click the map, or drag the pin to set where shows should be
+          near.
         </p>
         <div className="mt-3">
           <LocationPicker value={location} onChange={setLocation} />

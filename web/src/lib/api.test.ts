@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, feedSocketUrl, getFeed, unfollowArtist } from "@/lib/api";
+import { ApiError, feedSocketUrl, geocode, getFeed, unfollowArtist } from "@/lib/api";
 import { EMPTY_PAGE, GATEWAY_URL, server, TOKEN } from "@/test/server";
 import type { FeedFilters } from "@/types";
 
@@ -83,6 +83,23 @@ describe("unfollowArtist", () => {
     );
 
     await expect(unfollowArtist(TOKEN, "artist-1")).resolves.toBeUndefined();
+  });
+});
+
+describe("geocode", () => {
+  it("sends the query and returns the places", async () => {
+    const requests: Request[] = [];
+    const places = [{ label: "Columbus, Ohio, United States", lat: 39.96, lon: -83.0 }];
+    server.use(
+      http.get(`${GATEWAY_URL}/geocode`, ({ request }) => {
+        requests.push(request);
+        return HttpResponse.json(places);
+      }),
+    );
+
+    await expect(geocode(TOKEN, "Columbus, OH")).resolves.toEqual(places);
+    expect(new URL(requests[0].url).searchParams.get("q")).toBe("Columbus, OH");
+    expect(requests[0].headers.get("Authorization")).toBe(`Bearer ${TOKEN}`);
   });
 });
 
