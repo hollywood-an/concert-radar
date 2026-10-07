@@ -16,7 +16,8 @@ from src import ws
 from src.config import get_settings
 from src.deps import get_sessionmaker
 from src.kafka import get_taste_publisher
-from src.routes import artists, auth, events, feed, follows, geocode, users
+from src.recommender import get_recommender
+from src.routes import artists, auth, discover, events, feed, follows, geocode, users
 from src.telemetry import configure_telemetry
 
 configure_telemetry("gateway")
@@ -25,13 +26,14 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Run the WebSocket push loop for the app's lifetime; flush Kafka on shutdown."""
+    """Run the WebSocket push loop; on shutdown, flush Kafka and close the gRPC channel."""
     push_task = asyncio.create_task(ws.matches_push_loop())
     yield
     push_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await push_task
     await get_taste_publisher().stop()
+    await get_recommender().aclose()
 
 
 app = FastAPI(title="Concert Radar Gateway", lifespan=_lifespan)
@@ -49,6 +51,7 @@ app.include_router(artists.router)
 app.include_router(follows.router)
 app.include_router(users.router)
 app.include_router(geocode.router)
+app.include_router(discover.router)
 app.include_router(ws.router)
 
 

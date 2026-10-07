@@ -1,7 +1,14 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, feedSocketUrl, geocode, getFeed, unfollowArtist } from "@/lib/api";
+import {
+  ApiError,
+  feedSocketUrl,
+  geocode,
+  getDiscover,
+  getFeed,
+  unfollowArtist,
+} from "@/lib/api";
 import { EMPTY_PAGE, GATEWAY_URL, server, TOKEN } from "@/test/server";
 import type { FeedFilters } from "@/types";
 
@@ -83,6 +90,23 @@ describe("unfollowArtist", () => {
     );
 
     await expect(unfollowArtist(TOKEN, "artist-1")).resolves.toBeUndefined();
+  });
+});
+
+describe("getDiscover", () => {
+  it("asks for the default ten and surfaces a 503 as ApiError", async () => {
+    const requests: Request[] = [];
+    server.use(
+      http.get(`${GATEWAY_URL}/discover`, ({ request }) => {
+        requests.push(request);
+        return new HttpResponse(null, { status: 503 });
+      }),
+    );
+
+    const error: unknown = await getDiscover(TOKEN).catch((e: unknown) => e);
+
+    expect(new URL(requests[0].url).searchParams.get("limit")).toBe("10");
+    expect(error).toMatchObject({ status: 503 });
   });
 });
 

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import ArtistSearchBar from "@/components/ArtistSearchBar";
+import DiscoverStrip from "@/components/DiscoverStrip";
 import FeedList from "@/components/FeedList";
 import FilterDrawer, { activeFilterCount } from "@/components/FilterDrawer";
 import NavBar from "@/components/NavBar";
@@ -98,6 +99,7 @@ export default function FeedPage() {
           )}
         </button>
       </div>
+      <DiscoverStrip />
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Upcoming near you

@@ -174,3 +174,20 @@ class GeocodeResult(BaseModel):
     label: str
     lat: float
     lon: float
+
+
+class DiscoverItem(BaseModel):
+    """One GET /discover show: a nearby date by an artist the user doesn't follow yet."""
+
+    event_id: UUID
+    title: str | None
+    starts_at: datetime
+    venue_name: str
+    venue_city: str | None
+    distance_m: float
+    image_url: str | None
+    artist_id: UUID
+    artist_name: str
+    artist_image_url: str | None
+    genre: str
+    similarity: float

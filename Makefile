@@ -1,6 +1,6 @@
-.PHONY: dev infra topics migrate seed demo test test-image lint
+.PHONY: dev infra topics migrate seed demo test test-image lint proto proto-lint
 
-SERVICES := gateway scraper-ticketmaster deduper enricher matcher notifier
+SERVICES := gateway scraper-ticketmaster deduper enricher matcher notifier recommender
 
 infra:
 	docker compose up -d
@@ -46,6 +46,9 @@ dev-matcher:
 dev-notifier:
 	cd services/notifier && uv run python -m src.main
 
+dev-recommender:
+	cd services/recommender && uv run python -m src.main
+
 dev-web:
 	cd web && pnpm dev
 
@@ -56,8 +59,18 @@ dev: infra
 	$(MAKE) dev-enricher &
 	$(MAKE) dev-matcher &
 	$(MAKE) dev-notifier &
+	$(MAKE) dev-recommender &
 	$(MAKE) dev-web &
 	wait
+
+# Regenerate the gRPC code in services/*/src/gen after editing proto/.
+proto:
+	proto/generate.sh
+
+# buf lint and format checks, run in Docker so buf needn't be installed.
+proto-lint:
+	docker run --rm -v "$(CURDIR):/workspace" -w /workspace bufbuild/buf:1.73.0 lint proto
+	docker run --rm -v "$(CURDIR):/workspace" -w /workspace bufbuild/buf:1.73.0 format --diff --exit-code proto
 
 # Integration tests start this image through testcontainers.
 test-image:

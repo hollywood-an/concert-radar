@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package recommender.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Discovery recommendations: upcoming shows near a user by artists they don't follow yet.
+service RecommenderService {
+  // Shows ranked by how close each headliner is to the user's taste, at most two per
+  // genre before the list repeats a genre. Fails with NOT_FOUND for an unknown user.
+  rpc GetRecommendations(GetRecommendationsRequest) returns (GetRecommendationsResponse);
+}
+
+message GetRecommendationsRequest {
+  // The user's UUID.
+  string user_id = 1;
+  // Maximum number of recommendations; 0 means the default of 10, and anything above
+  // 50 is capped at 50.
+  int32 limit = 2;
+}
+
+message GetRecommendationsResponse {
+  repeated Recommendation recommendations = 1;
+}
+
+// One show: the headliner's soonest upcoming date within the user's travel radius.
+message Recommendation {
+  string event_id = 1;
+  optional string title = 2;
+  google.protobuf.Timestamp starts_at = 3;
+  string venue_name = 4;
+  optional string venue_city = 5;
+  // Distance from the user's home location to the venue, in meters.
+  double distance_m = 6;
+  optional string image_url = 7;
+  string artist_id = 8;
+  string artist_name = 9;
+  optional string artist_image_url = 10;
+  // The headliner's primary genre, lowercased; empty when the artist has none.
+  string genre = 11;
+  // Cosine similarity between the user's taste and the headliner, from -1 to 1.
+  double similarity = 12;
+}

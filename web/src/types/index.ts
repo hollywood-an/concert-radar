@@ -5,6 +5,21 @@ export interface Location {
   lon: number;
 }
 
+export interface DiscoverItem {
+  event_id: string;
+  title: string | null;
+  starts_at: string;
+  venue_name: string;
+  venue_city: string | null;
+  distance_m: number;
+  image_url: string | null;
+  artist_id: string;
+  artist_name: string;
+  artist_image_url: string | null;
+  genre: string;
+  similarity: number;
+}
+
 export interface GeocodeResult {
   label: string;
   lat: number;

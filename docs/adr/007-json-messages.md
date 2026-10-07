@@ -28,3 +28,7 @@ Pydantic models. Every message carries W3C trace context in Kafka headers.
   both sides.
 - If a contract needs strict cross-language guarantees (a non-Python consumer, or a schema
   registry), protobuf or JSON Schema can be introduced per topic without changing the others.
+- The one synchronous call, gateway → recommender, is gRPC, so its contract is protobuf in
+  `proto/recommender/v1/` with buf lint and breaking-change checks in CI. That is where
+  generated code pays for itself: the stub, the server base class, and typed messages come
+  from one file both sides compile against.

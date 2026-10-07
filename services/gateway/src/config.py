@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     # Address search for the home-location picker (GET /geocode).
     nominatim_url: str = "https://nominatim.openstreetmap.org"
+    # The recommender's gRPC address, and how long GET /discover waits for it.
+    recommender_target: str = "localhost:50051"
+    recommender_timeout_s: float = 2.0
 
 
 @lru_cache

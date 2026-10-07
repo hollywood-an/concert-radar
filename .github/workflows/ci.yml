@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [gateway, scraper-ticketmaster, deduper, enricher, matcher, notifier]
+        service: [gateway, scraper-ticketmaster, deduper, enricher, matcher, notifier, recommender]
     defaults:
       run:
         working-directory: services/${{ matrix.service }}
@@ -89,13 +89,51 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # proto/ is the contract between the gateway and the recommender: lint it, refuse
+  # breaking changes against main, and fail if the generated code wasn't regenerated.
+  proto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: bufbuild/buf-action@v1
+        with:
+          version: "1.73.0"
+          setup_only: true
+      - run: buf lint proto
+      - run: buf format --diff --exit-code proto
+      - name: No breaking changes against main
+        if: github.event_name == 'pull_request'
+        run: |
+          if git cat-file -e origin/main:proto/buf.yaml 2>/dev/null; then
+            git worktree add --detach "$RUNNER_TEMP/main" origin/main
+            buf breaking proto --against "$RUNNER_TEMP/main/proto"
+          else
+            echo "main has no proto/ yet; nothing to compare against."
+          fi
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.8.14"
+          enable-cache: true
+          cache-dependency-glob: services/recommender/uv.lock
+      - name: Generated code matches proto/
+        run: |
+          proto/generate.sh
+          git status --porcelain -- services/*/src/gen
+          test -z "$(git status --porcelain -- services/*/src/gen)"
+
   # The single required status check, so matrix changes never break branch protection.
   ci-ok:
     if: always()
-    needs: [python, web]
+    needs: [python, web, proto]
     runs-on: ubuntu-latest
     steps:
       - name: Every CI job passed
         run: |
           test "${{ needs.python.result }}" = success
           test "${{ needs.web.result }}" = success
+          test "${{ needs.proto.result }}" = success

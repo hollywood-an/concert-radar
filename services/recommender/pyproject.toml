@@ -1,0 +1,54 @@
+[project]
+name = "recommender"
+version = "0.1.0"
+description = "gRPC service that recommends nearby shows by artists a user doesn't follow yet."
+requires-python = ">=3.12"
+dependencies = [
+    "asyncpg>=0.29",
+    "grpcio>=1.84",
+    "opentelemetry-api>=1.25",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.25",
+    "opentelemetry-instrumentation-grpc>=0.46b0",
+    "opentelemetry-sdk>=1.25",
+    "protobuf>=7.35.1",
+    "pydantic-settings>=2.3",
+    "sqlalchemy[asyncio]>=2.0",
+    "structlog>=24.1",
+]
+
+[dependency-groups]
+dev = [
+    "grpcio-tools>=1.84",
+    "mypy>=1.10",
+    "mypy-protobuf>=3.6",
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "testcontainers>=4.7",
+    "types-grpcio>=1.0",
+    "types-protobuf>=5.29",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["src/gen"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["asyncpg", "testcontainers.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]

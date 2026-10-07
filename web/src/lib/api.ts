@@ -4,6 +4,7 @@ import type {
   ArtistDetail,
   ArtistSummary,
   DevAuthResponse,
+  DiscoverItem,
   EventDetail,
   FeedFilters,
   FeedPage,
@@ -97,6 +98,10 @@ export function searchArtists(token: string, q: string): Promise<ArtistSummary[]
 
 export function getArtist(token: string, artistId: string): Promise<ArtistDetail> {
   return request<ArtistDetail>(`/artists/${encodeURIComponent(artistId)}`, {}, token);
+}
+
+export function getDiscover(token: string, limit = 10): Promise<DiscoverItem[]> {
+  return request<DiscoverItem[]>(`/discover?limit=${limit}`, {}, token);
 }
 
 export function geocode(token: string, q: string): Promise<GeocodeResult[]> {
