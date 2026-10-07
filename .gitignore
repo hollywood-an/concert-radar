@@ -39,3 +39,6 @@ deploy/local.env
 *.tfplan
 tfplan
 *.tfvars
+
+# Production settings written on the EC2 host by deploy/deploy.sh
+.env.deploy

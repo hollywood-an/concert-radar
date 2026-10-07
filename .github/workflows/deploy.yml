@@ -1,0 +1,166 @@
+name: Deploy
+
+# Ships every commit on main that passes CI: builds the images for that commit, pushes them
+# to ECR, and rolls the EC2 host over SSM Run Command (no SSH, no stored AWS keys: the jobs
+# assume an IAM role through GitHub's OIDC token). Run it by hand with an older commit sha
+# to roll back; images are tagged by sha and never overwritten.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit to deploy (defaults to the latest commit on main)
+        required: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  prepare:
+    # Skips cleanly until the AWS environment exists (vars come from `terraform output`).
+    if: >-
+      vars.INSTANCE_ID != '' && (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - id: sha
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: echo "sha=${INPUT_SHA:-${RUN_SHA:-$GITHUB_SHA}}" >> "$GITHUB_OUTPUT"
+
+  images:
+    name: image (${{ matrix.name }})
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { name: gateway, context: services/gateway }
+          - { name: scraper-ticketmaster, context: services/scraper-ticketmaster }
+          - { name: deduper, context: services/deduper }
+          - { name: enricher, context: services/enricher }
+          - { name: matcher, context: services/matcher }
+          - { name: notifier, context: services/notifier }
+          - { name: web, context: web }
+          - { name: postgres, context: infra/postgres }
+    env:
+      IMAGE: ${{ vars.ECR_REGISTRY }}/concert-radar/${{ matrix.name }}:${{ needs.prepare.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Tags are immutable, so a re-run or a rollback reuses what is already in ECR.
+      - name: Check whether this commit's image is already in ECR
+        id: existing
+        env:
+          REPO: concert-radar/${{ matrix.name }}
+          TAG: ${{ needs.prepare.outputs.sha }}
+        run: |
+          if aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.existing.outputs.found != 'true'
+        uses: aws-actions/amazon-ecr-login@v2
+      - if: steps.existing.outputs.found != 'true'
+        uses: docker/setup-buildx-action@v4
+      - if: steps.existing.outputs.found != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}
+          # The browser bundle inlines the API URL (only the web image reads this arg).
+          build-args: NEXT_PUBLIC_GATEWAY_URL=https://api.${{ vars.PUBLIC_HOST }}
+          # Attestations would add extra manifests per push and crowd ECR's keep-last-10 rule.
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=image-${{ matrix.name }}
+          cache-to: type=gha,scope=image-${{ matrix.name }},mode=max
+
+  deploy:
+    needs: [prepare, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://${{ vars.PUBLIC_HOST }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Roll out on the host over SSM
+        env:
+          SHA: ${{ needs.prepare.outputs.sha }}
+          REPO_URL: https://github.com/${{ github.repository }}.git
+          INSTANCE_ID: ${{ vars.INSTANCE_ID }}
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+          PUBLIC_HOST: ${{ vars.PUBLIC_HOST }}
+          RAW_BUCKET: ${{ vars.RAW_BUCKET }}
+        run: |
+          script=$(cat <<EOF
+          set -euo pipefail
+          mkdir -p /opt/concert-radar && cd /opt/concert-radar
+          [ -d .git ] || { git init -q && git remote add origin $REPO_URL; }
+          git fetch -q --depth 1 origin $SHA
+          git checkout -q --force FETCH_HEAD
+          IMAGE_TAG=$SHA ECR_REGISTRY=$ECR_REGISTRY PUBLIC_HOST=$PUBLIC_HOST AWS_REGION=$AWS_REGION RAW_BUCKET=$RAW_BUCKET deploy/deploy.sh
+          EOF
+          )
+          jq -n --arg script "$script" '{commands: [$script]}' > params.json
+          command_id=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript --comment "deploy ${SHA:0:12}" \
+            --timeout-seconds 1500 --parameters file://params.json \
+            --query Command.CommandId --output text)
+          echo "SSM command $command_id"
+
+          # The CLI's built-in waiter gives up after ~100 s; a first deploy pulls ~3 GB.
+          status=Pending
+          for _ in $(seq 1 150); do
+            sleep 10
+            status=$(aws ssm get-command-invocation --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Success|Failed|Cancelled|TimedOut) break ;; esac
+          done
+          echo "status: $status"
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text | tail -n 80
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text | tail -n 40
+          test "$status" = Success
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: The app and API answer over HTTPS
+        env:
+          HOST: ${{ vars.PUBLIC_HOST }}
+        run: |
+          curl -fsS --retry 20 --retry-all-errors --retry-delay 6 "https://api.$HOST/readyz"
+          curl -fsS --retry 20 --retry-all-errors --retry-delay 6 -o /dev/null "https://$HOST/"
+          echo "live at https://$HOST"
