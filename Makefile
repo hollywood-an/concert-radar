@@ -79,3 +79,12 @@ lint:
 bucket:
 	docker compose exec -T minio mc alias set local http://localhost:9000 minioadmin minioadmin
 	docker compose exec -T minio mc mb --ignore-existing local/concert-radar
+
+.PHONY: loadtest
+
+# Load-test GET /feed with k6 in Docker (no local install). Containers reach a gateway on
+# the host through host.docker.internal; pass API_URL=https://api.<host> for the live deploy.
+loadtest:
+	docker run --rm -i -e API_URL=$(or $(API_URL),http://host.docker.internal:8000) \
+		-e VUS=$(or $(VUS),20) -e DURATION=$(or $(DURATION),30s) \
+		grafana/k6:2.3.0 run --quiet --summary-trend-stats "avg,med,p(95),p(99),max" - < loadtest/feed.js
