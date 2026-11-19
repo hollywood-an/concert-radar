@@ -42,3 +42,12 @@ The demo account is on the AWS Free plan, which can launch only a short list of 
 types, and t3a.medium is not on it. The default host is now a c7i-flex.large: the same
 2 vCPU / 4 GB and x86 architecture, but about $2.24/day instead of $1.12/day, paid from the
 plan's credits. `-var instance_type=t3a.medium` restores the original choice on a Paid plan.
+
+The Free plan's service control policy also denies `iam:CreateOpenIDConnectProvider` (and SAML
+providers and IAM Roles Anywhere), so GitHub cannot assume the deploy role through OIDC there.
+The default is now `github_auth=access_key`: an IAM user whose only permission is to assume
+the deploy role, with its access key in the repo's `production` environment secrets. This
+gives up "no long-lived AWS key anywhere". The exposure is limited to what the deploy role can
+do (push to nine ECR repositories and run commands on one host), the key is readable only by
+jobs in the `production` environment, and it can be rotated or deleted at any time.
+`-var github_auth=oidc` restores the keyless design on an account that allows it.

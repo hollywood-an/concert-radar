@@ -170,7 +170,7 @@ Migrations are append-only SQL files applied by `db/migrate.sh`, which records e
 flowchart LR
     dev[pull request] --> CI[GitHub Actions<br/>CI · Images · Terraform]
     CI -- merge to main --> deploy[Deploy workflow]
-    deploy -- OIDC role, no stored keys --> ECR[(Amazon ECR)]
+    deploy -- narrow deploy role --> ECR[(Amazon ECR)]
     deploy -- SSM Run Command --> host
     sched[EventBridge Scheduler<br/>every 6 h] -- SSM Run Command --> host
     subgraph host [EC2 c7i-flex.large · Docker Compose]
@@ -184,7 +184,7 @@ flowchart LR
 ```
 
 Terraform (`infra/terraform`) creates the host, its IAM role, the ECR repositories, the S3
-bucket, the GitHub OIDC deploy role, and the scraper schedule; there is no SSH (port 22 is
+bucket, the GitHub deploy role, and the scraper schedule; there is no SSH (port 22 is
 closed; operators use SSM). See [`deploy/README.md`](../deploy/README.md) and
 [ADR 005](adr/005-single-host-compose.md).
 

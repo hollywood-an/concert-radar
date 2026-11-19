@@ -68,12 +68,20 @@ resource "aws_iam_instance_profile" "host" {
   role = aws_iam_role.host.name
 }
 
-# GitHub Actions deploy role, assumable only from this repo's production
-# environment through OIDC.
+# GitHub Actions deploy role. GitHub reaches it in one of two ways (var.github_auth):
+#
+# - "access_key": an IAM user whose only permission is to assume this role. Its
+#   access key lives in the repo's `production` environment secrets. This is the
+#   default because the AWS Free plan's service control policy denies
+#   iam:CreateOpenIDConnectProvider.
+# - "oidc": GitHub's OIDC token, restricted to this repo's production
+#   environment. Nothing long-lived is stored; use it wherever the account allows.
 
 locals {
+  github_oidc     = var.github_auth == "oidc"
   github_oidc_url = "https://token.actions.githubusercontent.com"
   github_oidc_provider_arn = (
+    !local.github_oidc ? null :
     var.create_github_oidc_provider
     ? aws_iam_openid_connect_provider.github[0].arn
     : data.aws_iam_openid_connect_provider.github[0].arn
@@ -83,37 +91,83 @@ locals {
 # AWS trusts GitHub's OIDC signing certificate through its own CA store, so no
 # thumbprint is pinned.
 resource "aws_iam_openid_connect_provider" "github" {
-  count = var.create_github_oidc_provider ? 1 : 0
+  count = local.github_oidc && var.create_github_oidc_provider ? 1 : 0
 
   url            = local.github_oidc_url
   client_id_list = ["sts.amazonaws.com"]
 }
 
 data "aws_iam_openid_connect_provider" "github" {
-  count = var.create_github_oidc_provider ? 0 : 1
+  count = local.github_oidc && !var.create_github_oidc_provider ? 1 : 0
 
   url = local.github_oidc_url
 }
 
-data "aws_iam_policy_document" "github_assume" {
+# The access key is created outside Terraform (see the README) so the secret
+# never enters state. force_destroy lets `terraform destroy` remove the user
+# together with that key.
+resource "aws_iam_user" "deploy" {
+  count = local.github_oidc ? 0 : 1
+
+  name          = "concert-radar-github-deploy"
+  force_destroy = true
+}
+
+data "aws_iam_policy_document" "deploy_user" {
+  count = local.github_oidc ? 0 : 1
+
+  # TagSession: the configure-aws-credentials action tags the role session.
   statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
+    sid       = "AssumeDeployRoleOnly"
+    actions   = ["sts:AssumeRole", "sts:TagSession"]
+    resources = [aws_iam_role.deploy.arn]
+  }
+}
 
-    principals {
-      type        = "Federated"
-      identifiers = [local.github_oidc_provider_arn]
+resource "aws_iam_user_policy" "deploy" {
+  count = local.github_oidc ? 0 : 1
+
+  name   = "assume-deploy-role"
+  user   = aws_iam_user.deploy[0].name
+  policy = data.aws_iam_policy_document.deploy_user[0].json
+}
+
+data "aws_iam_policy_document" "github_assume" {
+  dynamic "statement" {
+    for_each = local.github_oidc ? [1] : []
+
+    content {
+      actions = ["sts:AssumeRoleWithWebIdentity"]
+
+      principals {
+        type        = "Federated"
+        identifiers = [local.github_oidc_provider_arn]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "token.actions.githubusercontent.com:aud"
+        values   = ["sts.amazonaws.com"]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "token.actions.githubusercontent.com:sub"
+        values   = ["repo:${var.github_repo}:environment:production"]
+      }
     }
+  }
 
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
+  dynamic "statement" {
+    for_each = local.github_oidc ? [] : [1]
 
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:environment:production"]
+    content {
+      actions = ["sts:AssumeRole", "sts:TagSession"]
+
+      principals {
+        type        = "AWS"
+        identifiers = [aws_iam_user.deploy[0].arn]
+      }
     }
   }
 }

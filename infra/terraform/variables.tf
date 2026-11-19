@@ -21,8 +21,19 @@ variable "github_repo" {
   }
 }
 
+variable "github_auth" {
+  description = "How GitHub Actions reaches the deploy role: \"access_key\" (an IAM user that can only assume the role; its key is stored in GitHub secrets) or \"oidc\" (GitHub's OIDC token, nothing stored). The AWS Free plan denies creating OIDC providers, so access_key is the default."
+  type        = string
+  default     = "access_key"
+
+  validation {
+    condition     = contains(["access_key", "oidc"], var.github_auth)
+    error_message = "github_auth must be access_key or oidc."
+  }
+}
+
 variable "create_github_oidc_provider" {
-  description = "Create the GitHub Actions OIDC provider. Set false when the account already has one for token.actions.githubusercontent.com (an account can hold only one)."
+  description = "Only with github_auth = \"oidc\". Create the GitHub Actions OIDC provider. Set false when the account already has one for token.actions.githubusercontent.com (an account can hold only one)."
   type        = bool
   default     = true
 }

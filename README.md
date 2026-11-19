@@ -71,8 +71,10 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
   of slowing the page.
 - **Deployed on AWS with Terraform.** One EC2 host runs the stack with Docker Compose behind
   Caddy (HTTPS). Merging to `main` builds the images, pushes them to **ECR**, and rolls the
-  host with **SSM Run Command**: GitHub assumes an IAM role through **OIDC**, so no AWS key is
-  stored anywhere and the host has no SSH. **EventBridge Scheduler** runs the scraper every six
+  host with **SSM Run Command**: GitHub assumes a narrow IAM deploy role, and the host has no
+  SSH. The Terraform supports keyless **OIDC**; the demo account's AWS Free plan forbids OIDC
+  providers, so it uses an IAM user that can only assume that role, with its key in GitHub
+  environment secrets. **EventBridge Scheduler** runs the scraper every six
   hours; raw API responses are archived to **S3**. See [`deploy/`](deploy/README.md).
 - **Observable.** OpenTelemetry traces across HTTP, Kafka, and gRPC hops, JSON logs with
   trace ids, and `/healthz` + `/readyz` on every service, used by the deploy to wait for a

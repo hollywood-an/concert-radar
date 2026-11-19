@@ -11,8 +11,12 @@ This configuration creates:
 - nine ECR repositories `concert-radar/*` (immutable tags, scan on push,
   last 10 images kept)
 - the private bucket `concert-radar-raw-<account_id>` (`raw/` expires after 90 days)
-- the host's instance role, the GitHub OIDC provider, and the deploy role
-  that only `repo:hollywood-an/concert-radar:environment:production` can assume
+- the host's instance role and the GitHub deploy role, plus one way for GitHub
+  to assume that role (`github_auth`):
+  - `access_key` (default): the IAM user `concert-radar-github-deploy`, which
+    can do nothing but assume the deploy role
+  - `oidc`: the GitHub OIDC provider, with the role assumable only by
+    `repo:hollywood-an/concert-radar:environment:production`
 - an EventBridge Scheduler schedule that runs the scraper on the host every 6 hours
 - optionally, a 40 USD/month budget alert
 
@@ -30,9 +34,13 @@ This configuration creates:
      --name /concert-radar/ticketmaster_api_key --value "$TICKETMASTER_API_KEY"
    ```
 
-3. If the account already has an OIDC provider for
-   `token.actions.githubusercontent.com` (only one is allowed per account),
-   pass `-var create_github_oidc_provider=false`. Its audiences must include
+3. Choose how GitHub signs in. The AWS Free plan's service control policy
+   denies `iam:CreateOpenIDConnectProvider`, so the default is
+   `github_auth=access_key`. On an account that allows OIDC providers, pass
+   `-var github_auth=oidc` and nothing long-lived is stored. With OIDC, if the
+   account already has a provider for `token.actions.githubusercontent.com`
+   (only one is allowed per account), also pass
+   `-var create_github_oidc_provider=false`; its audiences must include
    `sts.amazonaws.com`.
 
 ## Apply
@@ -71,6 +79,30 @@ done
 
 `PUBLIC_HOST` is the Elastic IP in sslip.io form (`3-14-15-92.sslip.io`), which
 resolves to that IP without any DNS setup.
+
+### Deploy access key
+
+Only with `github_auth=access_key`. Terraform creates the user but not its key,
+so the secret never enters Terraform state. Create the key and hand it straight
+to GitHub as `production` environment secrets; nothing is printed or written to
+disk:
+
+```sh
+gh api -X PUT repos/{owner}/{repo}/environments/production --silent
+aws iam create-access-key --user-name "$(terraform output -raw deploy_user)" \
+  --query '[AccessKey.AccessKeyId,AccessKey.SecretAccessKey]' --output text |
+  {
+    read -r id secret
+    gh secret set AWS_ACCESS_KEY_ID --env production --body "$id"
+    gh secret set AWS_SECRET_ACCESS_KEY --env production --body "$secret"
+  }
+```
+
+Environment secrets are readable only by jobs that run in the `production`
+environment, and pull requests from forks never receive them. To rotate, run the
+same commands again, then delete the old key (`aws iam list-access-keys` and
+`aws iam delete-access-key`, both with `--user-name`). A user can hold two keys
+at most. Deleting every key cuts GitHub off at once.
 
 ## On the host
 
