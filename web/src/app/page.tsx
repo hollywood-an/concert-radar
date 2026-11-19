@@ -37,7 +37,7 @@ function SignIn() {
       </p>
       <div className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <div>
-          <h1 className="font-display text-[clamp(3rem,9vw,6rem)] font-black uppercase leading-[0.95]">
+          <h1 className="font-display text-[clamp(3rem,9vw,6rem)] font-black uppercase leading-none">
             Every show near you, ranked by who you follow.
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
