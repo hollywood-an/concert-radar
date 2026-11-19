@@ -76,8 +76,11 @@ export function getFeed(
     params.set("cursor", cursor);
   }
   if (filters.dateRange !== null) {
-    params.set("date_from", `${filters.dateRange[0]}T00:00:00Z`);
-    params.set("date_to", `${filters.dateRange[1]}T23:59:59Z`);
+    // The picker's dates are the user's own calendar days, so the range runs from local
+    // midnight to the end of the local day. UTC boundaries would drop an 8 PM show on the
+    // last day for anyone west of Greenwich.
+    params.set("date_from", new Date(`${filters.dateRange[0]}T00:00:00`).toISOString());
+    params.set("date_to", new Date(`${filters.dateRange[1]}T23:59:59.999`).toISOString());
   }
   if (filters.maxDistance !== null) {
     params.set("max_distance_m", String(filters.maxDistance));
