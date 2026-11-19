@@ -13,11 +13,11 @@ about it: live in the app and in a daily email digest.
 with any email address; there is no password. The API runs on one small AWS host paid for with
 free-plan credits, so the demo may be offline.
 
-![Ranked feed of upcoming shows near Columbus, OH](docs/images/feed.png)
+![Ranked feed of upcoming shows near Columbus, OH](docs/images/feed.jpg)
 
-| Clustered map of every show in range | Event page | Artist page with similar artists |
+| Every show in range on a clustered map | A show, with its lineup and venue | An artist, with similar artists |
 |---|---|---|
-| ![Map](docs/images/map.jpg) | ![Event](docs/images/event.png) | ![Artist](docs/images/artist.png) |
+| ![Map](docs/images/map.jpg) | ![Event](docs/images/event.jpg) | ![Artist](docs/images/artist.jpg) |
 
 ## How it works
 
