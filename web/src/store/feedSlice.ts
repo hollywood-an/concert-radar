@@ -11,6 +11,9 @@ export interface FeedState {
   status: "idle" | "loading" | "error";
   filters: FeedFilters;
   freshEventIds: string[];
+  // Bumped whenever the list starts over (a reset or a filter change). A response that
+  // was requested under an older generation is dropped instead of overwriting newer data.
+  generation: number;
 }
 
 const initialState: FeedState = {
@@ -20,18 +23,21 @@ const initialState: FeedState = {
   status: "idle",
   filters: { dateRange: null, genres: [], maxDistance: null, maxPrice: null },
   freshEventIds: [],
+  generation: 0,
 };
 
 export const fetchFeedPage = createAsyncThunk<
   FeedPage,
   { reset: boolean },
-  { state: RootState }
+  { state: RootState; fulfilledMeta: { generation: number } }
 >("feed/fetchPage", async ({ reset }, thunkApi) => {
+  // The pending reducer has already run, so a reset sees its own new generation here.
   const { auth, feed } = thunkApi.getState();
   if (auth.token === null) {
     throw new Error("not authenticated");
   }
-  return getFeed(auth.token, reset ? null : feed.cursor, feed.filters);
+  const page = await getFeed(auth.token, reset ? null : feed.cursor, feed.filters);
+  return thunkApi.fulfillWithValue(page, { generation: feed.generation });
 });
 
 // Walk the remaining pages so the map has every in-radius event (bounded by page cap).
@@ -71,6 +77,7 @@ const feedSlice = createSlice({
       state.cursor = null;
       state.hasMore = false;
       state.freshEventIds = [];
+      state.generation += 1;
     },
     matchReceived(state, action: PayloadAction<FeedItem>) {
       const item = action.payload;
@@ -80,8 +87,9 @@ const feedSlice = createSlice({
       state.items.unshift(item);
       state.freshEventIds.push(item.event_id);
     },
-    feedCleared() {
-      return initialState;
+    feedCleared(state) {
+      // Keep counting up so a response still in flight from the old session is dropped.
+      return { ...initialState, generation: state.generation + 1 };
     },
   },
   extraReducers: (builder) => {
@@ -89,9 +97,13 @@ const feedSlice = createSlice({
       .addCase(fetchFeedPage.pending, (state, action) => {
         if (action.meta.arg.reset) {
           state.status = "loading";
+          state.generation += 1;
         }
       })
       .addCase(fetchFeedPage.fulfilled, (state, action) => {
+        if (action.meta.generation !== state.generation) {
+          return;
+        }
         const page = action.payload;
         state.items = action.meta.arg.reset ? page.items : [...state.items, ...page.items];
         state.cursor = page.next_cursor;

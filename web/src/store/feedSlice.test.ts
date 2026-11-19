@@ -1,4 +1,4 @@
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { dismissEvent, fetchFeedPage, filtersChanged, matchReceived } from "@/store/feedSlice";
@@ -53,6 +53,44 @@ describe("fetchFeedPage", () => {
     expect(eventIds(store)).toEqual(["e4"]);
     expect(store.getState().feed).toMatchObject({ cursor: "c2", freshEventIds: [] });
     expect(cursors).toEqual([null, null]);
+  });
+});
+
+describe("overlapping feed requests", () => {
+  it("drops a response that was requested before a newer reset", async () => {
+    const store = await signedInStore();
+    let requests = 0;
+    server.use(
+      http.get(`${GATEWAY_URL}/feed`, async () => {
+        requests += 1;
+        if (requests === 1) {
+          // The older request answers last.
+          await delay(40);
+          return HttpResponse.json(feedPage(["old"], "c-old"));
+        }
+        return HttpResponse.json(feedPage(["new"], null));
+      }),
+    );
+
+    await Promise.all([
+      store.dispatch(fetchFeedPage({ reset: true })),
+      store.dispatch(fetchFeedPage({ reset: true })),
+    ]);
+
+    expect(eventIds(store)).toEqual(["new"]);
+    expect(store.getState().feed).toMatchObject({ cursor: null, hasMore: false, status: "idle" });
+  });
+
+  it("drops a next page that arrives after the filters changed", async () => {
+    const store = await signedInStore();
+    serveFeedPages(feedPage(["e1"], "c1"), feedPage(["e2"], null));
+    await store.dispatch(fetchFeedPage({ reset: true })).unwrap();
+
+    const nextPage = store.dispatch(fetchFeedPage({ reset: false }));
+    store.dispatch(filtersChanged({ dateRange: null, genres: ["jazz"], maxDistance: null, maxPrice: null }));
+    await nextPage;
+
+    expect(eventIds(store)).toEqual([]);
   });
 });
 

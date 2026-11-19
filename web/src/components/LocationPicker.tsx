@@ -3,7 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import type { MapLayerMouseEvent } from "maplibre-gl";
-import { type FormEvent, useCallback, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Map, { MapRef, Marker } from "react-map-gl/maplibre";
 
 import { geocode } from "@/lib/api";
@@ -32,6 +32,18 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
     },
     [onChange],
   );
+
+  // The profile loads after the map mounts, so the first location to arrive is the saved
+  // one: move the view to it. Later changes come from the user's own clicks and drags,
+  // which should not move the map under the cursor.
+  const centered = useRef(value !== null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  useEffect(() => {
+    if (!centered.current && value !== null && mapLoaded) {
+      centered.current = true;
+      mapRef.current?.jumpTo({ center: [value.lon, value.lat] });
+    }
+  }, [value, mapLoaded]);
 
   const search = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -111,7 +123,10 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
           mapStyle={OSM_STYLE}
           onClick={handleClick}
           // Guard against a stale container-size read when the map mounts mid-hydration.
-          onLoad={(event) => event.target.resize()}
+          onLoad={(event) => {
+            event.target.resize();
+            setMapLoaded(true);
+          }}
           style={{ width: "100%", height: "100%" }}
         >
           {value && (

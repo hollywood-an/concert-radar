@@ -7,6 +7,7 @@ import DiscoverStrip from "@/components/DiscoverStrip";
 import FeedList from "@/components/FeedList";
 import FilterDrawer, { activeFilterCount } from "@/components/FilterDrawer";
 import NavBar from "@/components/NavBar";
+import { useSessionReady } from "@/app/providers";
 import { useFeedSocket } from "@/hooks/useFeedSocket";
 import { login } from "@/store/authSlice";
 import { fetchFeedPage } from "@/store/feedSlice";
@@ -65,6 +66,7 @@ export default function FeedPage() {
   const filters = useAppSelector((state) => state.feed.filters);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const live = useFeedSocket(token);
+  const sessionReady = useSessionReady();
 
   useEffect(() => {
     if (token !== null) {
@@ -74,7 +76,8 @@ export default function FeedPage() {
   }, [token, dispatch]);
 
   if (token === null) {
-    return <LoginCard />;
+    // Until the stored session has been checked, show neither the form nor the feed.
+    return sessionReady ? <LoginCard /> : <main className="min-h-screen" aria-busy="true" />;
   }
 
   const filterCount = activeFilterCount(filters);

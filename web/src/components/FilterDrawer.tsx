@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchFeedPage, filtersChanged } from "@/store/feedSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -28,7 +28,34 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
   const dispatch = useAppDispatch();
   const applied = useAppSelector((state) => state.feed.filters);
   const items = useAppSelector((state) => state.feed.items);
+  const radiusMeters = useAppSelector((state) => state.auth.user?.travel_radius_m ?? null);
   const [draft, setDraft] = useState<FeedFilters>(applied);
+
+  // The distance slider runs up to the travel radius from Settings; its far end means
+  // "no extra limit". The price filter is offered only when some loaded show lists a
+  // price, because the API drops unpriced shows whenever a maximum is set.
+  const maxMiles = Math.max(2, Math.round((radiusMeters ?? 50 * MILES) / MILES));
+  const anyPriced = items.some((item) => item.price_min_cents !== null);
+
+  // Off-screen is not enough: without inert, Tab would walk through the hidden form.
+  // Set on the element directly because React 18 does not pass the attribute through.
+  const asideRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    asideRef.current?.toggleAttribute("inert", !open);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   // Genre checkboxes come from what is currently on screen: the loaded items' headliners.
   const genreOptions = useMemo(() => {
@@ -70,7 +97,9 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
       )}
       {/* Shadow only while open: off-screen, it would bleed onto the page's right edge. */}
       <aside
-        className={`fixed right-0 top-0 z-40 h-full w-80 transform overflow-y-auto bg-white p-6 transition-transform ${
+        ref={asideRef}
+        aria-label="Filters"
+        className={`fixed right-0 top-0 z-40 h-full w-80 max-w-full transform overflow-y-auto bg-white p-6 transition-transform ${
           open ? "translate-x-0 shadow-2xl" : "translate-x-full"
         }`}
       >
@@ -155,11 +184,15 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
           <input
             type="range"
             min={1}
-            max={50}
-            value={draft.maxDistance !== null ? Math.round(draft.maxDistance / MILES) : 50}
+            max={maxMiles}
+            value={
+              draft.maxDistance !== null
+                ? Math.min(maxMiles, Math.round(draft.maxDistance / MILES))
+                : maxMiles
+            }
             onChange={(event) => {
               const miles = Number(event.target.value);
-              setDraft({ ...draft, maxDistance: miles >= 50 ? null : miles * MILES });
+              setDraft({ ...draft, maxDistance: miles >= maxMiles ? null : miles * MILES });
             }}
             className="mt-2 w-full accent-indigo-600"
           />
@@ -174,18 +207,24 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
               </span>
             )}
           </h3>
-          <input
-            type="range"
-            min={10}
-            max={200}
-            step={5}
-            value={draft.maxPrice !== null ? draft.maxPrice / 100 : 200}
-            onChange={(event) => {
-              const dollars = Number(event.target.value);
-              setDraft({ ...draft, maxPrice: dollars >= 200 ? null : dollars * 100 });
-            }}
-            className="mt-2 w-full accent-indigo-600"
-          />
+          {anyPriced || draft.maxPrice !== null ? (
+            <input
+              type="range"
+              min={10}
+              max={200}
+              step={5}
+              value={draft.maxPrice !== null ? draft.maxPrice / 100 : 200}
+              onChange={(event) => {
+                const dollars = Number(event.target.value);
+                setDraft({ ...draft, maxPrice: dollars >= 200 ? null : dollars * 100 });
+              }}
+              className="mt-2 w-full accent-indigo-600"
+            />
+          ) : (
+            <p className="mt-2 text-sm text-slate-400">
+              None of these shows list a price yet, so there is nothing to filter by.
+            </p>
+          )}
         </section>
 
         <div className="mt-8 flex gap-2">

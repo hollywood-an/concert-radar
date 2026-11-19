@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import FollowButton from "@/components/FollowButton";
@@ -76,7 +77,12 @@ export default function ArtistSearchBar() {
                 className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-slate-50"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900">{artist.name}</p>
+                  <Link
+                    href={`/artist/${artist.id}`}
+                    className="block truncate text-sm font-medium text-slate-900 hover:text-indigo-600"
+                  >
+                    {artist.name}
+                  </Link>
                   {artist.genres.length > 0 && (
                     <p className="truncate text-xs text-slate-500">
                       {artist.genres.join(" · ")}
