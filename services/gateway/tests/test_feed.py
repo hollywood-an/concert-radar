@@ -180,11 +180,12 @@ async def test_feed_orders_equal_scores_soonest_first(
 ) -> None:
     """With no follows every show scores the same, so the feed lists the soonest first."""
     days = [40, 5, 90, 12]
-    for offset in days:
+    artists = ["The National", "Phoebe Bridgers", "Turnstile", "Japanese Breakfast"]
+    for offset, artist in zip(days, artists, strict=True):
         await create_event(
             db,
             starts_at=datetime.now(UTC) + timedelta(days=offset),
-            lineup=((f"Artist {offset}", 0),),
+            lineup=((artist, 0),),
             title=f"Show in {offset} days",
         )
     headers = await auth_headers(client, "calendar@example.com")
