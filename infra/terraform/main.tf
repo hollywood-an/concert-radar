@@ -153,8 +153,13 @@ resource "aws_instance" "host" {
   iam_instance_profile   = aws_iam_instance_profile.host.name
   user_data              = local.host_user_data
 
-  credit_specification {
-    cpu_credits = "standard"
+  # Only burstable (T-family) types take a CPU credit setting; on those,
+  # `standard` rules out surplus-credit charges.
+  dynamic "credit_specification" {
+    for_each = startswith(var.instance_type, "t") ? [1] : []
+    content {
+      cpu_credits = "standard"
+    }
   }
 
   root_block_device {
