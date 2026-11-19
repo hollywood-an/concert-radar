@@ -62,7 +62,7 @@ _FEED_SQL = text(
           SELECT 1 FROM unnest(COALESCE(a.genres, '{}')) AS g
           WHERE lower(g) = ANY(CAST(:genres AS text[]))
       ))
-    ORDER BY score DESC, e.id
+    ORDER BY score DESC, e.starts_at, e.id
     LIMIT :limit OFFSET :offset
     """
 )
@@ -99,6 +99,9 @@ async def get_feed(
     genres: Annotated[list[str] | None, Query()] = None,
 ) -> FeedPage:
     """Return the user's upcoming events ranked by relevance score, paginated by cursor.
+
+    Equal scores sort soonest first. A user who follows nobody has no taste vector, so
+    every show scores the same and the feed reads as a plain calendar.
 
     Optional filters narrow the result: a date window, a maximum venue distance, a
     maximum minimum-ticket price (events without price data are excluded when set),
