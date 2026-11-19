@@ -132,6 +132,7 @@ jobs:
           ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
           PUBLIC_HOST: ${{ vars.PUBLIC_HOST }}
           RAW_BUCKET: ${{ vars.RAW_BUCKET }}
+          CORS_ORIGIN_REGEX: ${{ vars.CORS_ORIGIN_REGEX }}
         run: |
           script=$(cat <<EOF
           set -euo pipefail
@@ -145,7 +146,7 @@ jobs:
           [ -d .git ] || { git init -q && git remote add origin $REPO_URL; }
           git fetch -q --depth 1 origin $SHA
           git checkout -q --force FETCH_HEAD
-          IMAGE_TAG=$SHA ECR_REGISTRY=$ECR_REGISTRY PUBLIC_HOST=$PUBLIC_HOST AWS_REGION=$AWS_REGION RAW_BUCKET=$RAW_BUCKET deploy/deploy.sh
+          IMAGE_TAG=$SHA ECR_REGISTRY=$ECR_REGISTRY PUBLIC_HOST=$PUBLIC_HOST AWS_REGION=$AWS_REGION RAW_BUCKET=$RAW_BUCKET CORS_ORIGIN_REGEX='$CORS_ORIGIN_REGEX' deploy/deploy.sh
           EOF
           )
           jq -n --arg script "$script" '{commands: [$script]}' > params.json

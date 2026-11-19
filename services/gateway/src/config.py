@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the API; a JSON list in the environment,
     # e.g. CORS_ORIGINS='["https://concert-radar.example"]'.
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Optional pattern for further allowed origins, matched against the whole origin,
+    # e.g. a Vercel production domain plus that team's preview deployments. Empty: off.
+    cors_origin_regex: str = ""
     # Address search for the home-location picker (GET /geocode).
     nominatim_url: str = "https://nominatim.openstreetmap.org"
     # The recommender's gRPC address, and how long GET /discover waits for it.
