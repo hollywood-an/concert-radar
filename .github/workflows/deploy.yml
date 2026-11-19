@@ -1,8 +1,10 @@
 name: Deploy
 
 # Ships every commit on main that passes CI: builds the images for that commit, pushes them
-# to ECR, and rolls the EC2 host over SSM Run Command (no SSH, no stored AWS keys: the jobs
-# assume an IAM role through GitHub's OIDC token). Run it by hand with an older commit sha
+# to ECR, and rolls the EC2 host over SSM Run Command (no SSH). The jobs assume a narrow IAM
+# deploy role: with the `production` environment's access key secrets when they are set (an
+# IAM user that can do nothing but assume that role), otherwise through GitHub's OIDC token.
+# Run it by hand with an older commit sha
 # to roll back; images are tagged by sha and never overwritten.
 on:
   workflow_run:
@@ -68,7 +70,11 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
+          # Empty when the secrets are unset, which makes the action use OIDC instead.
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-duration-seconds: 3600
           aws-region: ${{ vars.AWS_REGION }}
 
       # Tags are immutable, so a re-run or a rollback reuses what is already in ECR.
@@ -111,7 +117,11 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v6
         with:
+          # Empty when the secrets are unset, which makes the action use OIDC instead.
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-duration-seconds: 3600
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Roll out on the host over SSM

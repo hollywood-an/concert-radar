@@ -8,8 +8,11 @@ HTTPS for `<ip>.sslip.io` (web), `api.<ip>.sslip.io` (REST + WebSocket), and
 ## How a deploy happens
 
 1. A commit lands on `main` and **CI** passes.
-2. The **Deploy** workflow (`.github/workflows/deploy.yml`) assumes the deploy role through
-   GitHub's OIDC token, so the repo stores no AWS keys. It builds the 9 images for that commit
+2. The **Deploy** workflow (`.github/workflows/deploy.yml`) assumes the deploy role, which can
+   only push to the app's ECR repositories and run commands on the host. On the demo account
+   it signs in with an IAM user's access key from the `production` environment secrets; that
+   user can do nothing but assume the role. With `github_auth=oidc` it uses GitHub's OIDC token
+   and no key is stored. It builds the 9 images for that commit
    (linux/amd64) and pushes them to ECR, tagged with the commit sha.
 3. It sends `deploy.sh` to the host with **SSM Run Command** (no SSH; port 22 is closed). On
    the host, `deploy.sh`:
@@ -40,6 +43,11 @@ Variables; none are secret), all from `terraform output`:
 | `RAW_BUCKET` | `raw_bucket` |
 
 Until `INSTANCE_ID` is set, the Deploy workflow skips.
+
+With the default `github_auth=access_key`, the workflow also reads two **`production`
+environment secrets**, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The
+[Terraform README](../infra/terraform/README.md#deploy-access-key) has the commands that create
+the key and store it without printing it.
 
 ## Operating it
 

@@ -19,7 +19,7 @@ output "ecr_registry" {
 }
 
 output "deploy_role_arn" {
-  description = "Role GitHub Actions assumes through OIDC (GitHub variable AWS_DEPLOY_ROLE_ARN)."
+  description = "Role GitHub Actions assumes to deploy (GitHub variable AWS_DEPLOY_ROLE_ARN)."
   value       = aws_iam_role.deploy.arn
 }
 
@@ -31,4 +31,9 @@ output "raw_bucket" {
 output "region" {
   description = "AWS region (GitHub variable AWS_REGION)."
   value       = var.region
+}
+
+output "deploy_user" {
+  description = "IAM user whose access key GitHub stores (null with github_auth = oidc)."
+  value       = one(aws_iam_user.deploy[*].name)
 }
