@@ -54,10 +54,10 @@ function SettingsForm() {
 
   if (token === null || user === null) {
     return (
-      <p className="mt-10 text-center text-sm text-slate-500">
+      <p className="mt-10 text-center text-sm text-ink-soft">
         {sessionReady ? (
           <>
-            <Link href="/" className="font-medium text-indigo-600 hover:underline">
+            <Link href="/" className="link">
               Sign in
             </Link>{" "}
             to manage settings.
@@ -93,67 +93,63 @@ function SettingsForm() {
   return (
     <>
       {importedBanner !== null && (
-        <p className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-          Imported {importedBanner} artists from Spotify. Your feed is re-ranking now.
+        <p role="status" className="mt-6 rounded-[0.625rem] bg-highlighter p-4 text-sm font-medium">
+          Imported {importedBanner} {importedBanner === 1 ? "artist" : "artists"} from Spotify.
+          Your feed is re-sorting around them now.
         </p>
       )}
 
-      <section className="mt-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Home location
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Search for an address, click the map, or drag the pin to set where shows should be
-          near.
+      <h1 className="heading mt-8 !text-5xl">Settings</h1>
+
+      <section className="mt-8">
+        <h2 className="heading !text-2xl">Home location</h2>
+        <p className="mt-1.5 text-sm text-ink-soft">
+          Shows are measured from here. Search for an address, click the map, or drag the pin.
         </p>
         <div className="mt-3">
           <LocationPicker value={location} onChange={edited(setLocation)} />
         </div>
-        {location && (
-          <p className="mt-2 text-xs text-slate-500">
-            {location.lat.toFixed(4)}, {location.lon.toFixed(4)}
-          </p>
-        )}
       </section>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Travel radius — {radiusMiles} mi
+        <h2 className="heading !text-2xl">
+          <label htmlFor="radius">How far you&apos;ll travel</label>
         </h2>
+        <p className="mt-1.5 text-sm text-ink-soft">
+          Shows within <span className="font-semibold text-ink">{radiusMiles} miles</span> of
+          your home location appear in your feed and on the map.
+        </p>
         <input
+          id="radius"
           type="range"
           min={1}
           max={150}
           value={radiusMiles}
           onChange={(event) => edited(setRadiusMiles)(Number(event.target.value))}
-          className="mt-3 w-full accent-indigo-600"
+          className="mt-3 w-full"
         />
       </section>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Alerts
-        </h2>
-        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+        <h2 className="heading !text-2xl">Alerts</h2>
+        <label className="mt-3 flex items-center gap-2 text-sm text-ink">
           <input
             type="checkbox"
             checked={emailAlerts}
             onChange={(event) => edited(setEmailAlerts)(event.target.checked)}
-            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            className="h-4 w-4 accent-pink"
           />
           Email me a daily digest when artists I follow have shows near me
         </label>
-        <p className="mt-1 pl-6 text-xs text-slate-500">
+        <p className="mt-1 pl-6 text-xs text-ink-soft">
           Sent once a day at 14:00 UTC (10am Eastern in summer, 9am in winter).
         </p>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Spotify
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Import the artists you follow to seed your taste profile.
+        <h2 className="heading !text-2xl">Spotify</h2>
+        <p className="mt-1.5 text-sm text-ink-soft">
+          Bring in the artists you follow on Spotify, so your feed is ranked from day one.
         </p>
         <div className="mt-3">
           <SpotifyImportButton />
@@ -165,12 +161,12 @@ function SettingsForm() {
           type="button"
           onClick={() => void save()}
           disabled={saveState === "saving"}
-          className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="button-primary"
         >
           {saveState === "saving" ? "Saving…" : "Save settings"}
         </button>
         <span role="status" className="text-sm font-medium">
-          {saveState === "saved" && <span className="text-green-700">Settings saved</span>}
+          {saveState === "saved" && <span className="text-emerald-800">Settings saved</span>}
           {saveState === "error" && (
             <span className="text-red-700">
               Couldn&apos;t save. Check your connection and try again.
@@ -184,7 +180,7 @@ function SettingsForm() {
 
 export default function SettingsPage() {
   return (
-    <main className="mx-auto min-h-screen max-w-2xl p-6">
+    <main className="mx-auto min-h-screen max-w-3xl px-4 pb-16 pt-6 sm:px-6">
       <NavBar />
       <Suspense fallback={null}>
         <SettingsForm />

@@ -50,3 +50,31 @@ export function formatPrice(
   }
   return dollars(minCents ?? maxCents ?? 0);
 }
+
+export interface DateParts {
+  month: string;
+  day: string;
+  weekday: string;
+  // Null when the show is in the current calendar year.
+  year: string | null;
+  time: string;
+}
+
+// A show's date split up for a ticket stub: "Feb", "25", "Thu", "2027", "6:30 PM".
+export function dateParts(iso: string, now: Date = new Date()): DateParts {
+  const date = new Date(iso);
+  const part = (options: Intl.DateTimeFormatOptions) => date.toLocaleString("en-US", options);
+  return {
+    month: part({ month: "short" }),
+    day: part({ day: "numeric" }),
+    weekday: part({ weekday: "short" }),
+    year: date.getFullYear() === now.getFullYear() ? null : String(date.getFullYear()),
+    time: part({ hour: "numeric", minute: "2-digit" }),
+  };
+}
+
+// "on_sale" from the API reads as "On sale".
+export function formatStatus(status: string): string {
+  const words = status.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDate, formatDistance, formatMatch, formatPrice } from "@/lib/format";
+import {
+  dateParts,
+  formatDate,
+  formatDistance,
+  formatMatch,
+  formatPrice,
+  formatStatus,
+} from "@/lib/format";
 
 describe("formatDate", () => {
   const now = new Date("2026-11-19T12:00:00");
@@ -41,5 +48,30 @@ describe("formatPrice", () => {
     expect(formatPrice(null, null)).toBeNull();
     expect(formatPrice(3500, 3500)).toBe("$35");
     expect(formatPrice(3500, 6000)).toBe("$35–$60");
+  });
+});
+
+describe("dateParts", () => {
+  const now = new Date("2026-11-19T12:00:00");
+
+  it("splits a date for a ticket stub and drops the current year", () => {
+    expect(dateParts("2026-12-05T19:00:00", now)).toEqual({
+      month: "Dec",
+      day: "5",
+      weekday: "Sat",
+      year: null,
+      time: "7:00 PM",
+    });
+  });
+
+  it("keeps the year for a show in another year", () => {
+    expect(dateParts("2027-02-25T18:30:00", now).year).toBe("2027");
+  });
+});
+
+describe("formatStatus", () => {
+  it("turns an API status into sentence case", () => {
+    expect(formatStatus("on_sale")).toBe("On sale");
+    expect(formatStatus("announced")).toBe("Announced");
   });
 });

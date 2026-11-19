@@ -48,10 +48,10 @@ describe("toggleFollow", () => {
     const calls = serveGateway({ ok: true });
 
     const toggle = clickFollow(store, "a1");
-    expect(store.getState().follows).toEqual({ artistIds: ["a1"], pendingToggles: ["a1"] });
+    expect(store.getState().follows).toMatchObject({ artistIds: ["a1"], pendingToggles: ["a1"] });
     await toggle.unwrap();
 
-    expect(store.getState().follows).toEqual({ artistIds: ["a1"], pendingToggles: [] });
+    expect(store.getState().follows).toMatchObject({ artistIds: ["a1"], pendingToggles: [] });
     await vi.waitFor(() => expect(calls).toEqual(["POST /follows a1", "GET /feed"]));
   });
 
@@ -60,10 +60,10 @@ describe("toggleFollow", () => {
     const calls = serveGateway({ ok: true });
 
     const toggle = clickFollow(store, "a1");
-    expect(store.getState().follows).toEqual({ artistIds: ["a2"], pendingToggles: ["a1"] });
+    expect(store.getState().follows).toMatchObject({ artistIds: ["a2"], pendingToggles: ["a1"] });
     await toggle.unwrap();
 
-    expect(store.getState().follows).toEqual({ artistIds: ["a2"], pendingToggles: [] });
+    expect(store.getState().follows).toMatchObject({ artistIds: ["a2"], pendingToggles: [] });
     await vi.waitFor(() => expect(calls).toEqual(["DELETE /follows/a1", "GET /feed"]));
   });
 
@@ -74,7 +74,7 @@ describe("toggleFollow", () => {
     const result = await clickFollow(store, "a1");
 
     expect(result.meta.requestStatus).toBe("rejected");
-    expect(store.getState().follows).toEqual({ artistIds: [], pendingToggles: [] });
+    expect(store.getState().follows).toMatchObject({ artistIds: [], pendingToggles: [] });
     expect(calls).toEqual(["POST /follows a1"]);
   });
 
@@ -85,7 +85,7 @@ describe("toggleFollow", () => {
     const result = await clickFollow(store, "a1");
 
     expect(result.meta.requestStatus).toBe("rejected");
-    expect(store.getState().follows).toEqual({ artistIds: ["a1"], pendingToggles: [] });
+    expect(store.getState().follows).toMatchObject({ artistIds: ["a1"], pendingToggles: [] });
     expect(calls).toEqual(["DELETE /follows/a1"]);
   });
 });

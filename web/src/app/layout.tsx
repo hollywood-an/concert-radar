@@ -2,23 +2,26 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
+import Providers from "@/app/providers";
+
+// Both families are open-licensed and served from src/app/fonts (see the README there).
+const display = localFont({
+  src: "./fonts/BigShouldersDisplay-latin.woff2",
+  variable: "--font-display",
   weight: "100 900",
+  display: "swap",
 });
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+const body = localFont({
+  src: "./fonts/SchibstedGrotesk-latin.woff2",
+  variable: "--font-body",
+  weight: "400 900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Concert Radar",
-  description: "Live shows near you, ranked by your taste.",
+  description: "Every show near you, ranked by the artists you follow.",
 };
-
-import Providers from "@/app/providers";
 
 export default function RootLayout({
   children,
@@ -27,9 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${display.variable} ${body.variable} antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

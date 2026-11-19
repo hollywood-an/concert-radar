@@ -22,52 +22,56 @@ export default function DiscoverStrip() {
   }
 
   return (
-    <section className="mt-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Discover</h2>
-      <p className="mb-3 text-sm text-slate-500">
-        Artists you don&apos;t follow yet, picked from your taste.
+    <section className="mt-8" aria-labelledby="discover-heading">
+      <h2 id="discover-heading" className="heading">
+        Artists you might like
+      </h2>
+      <p className="mb-4 mt-1.5 text-sm text-ink-soft">
+        Playing nearby, and close to the artists you already follow.
       </p>
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+      <ul className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:scroll-px-6 sm:px-6">
         {discover.data.map((item) => {
           const image = item.artist_image_url ?? item.image_url;
           return (
-            <article
+            <li
               key={item.event_id}
-              className="flex w-52 flex-none flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+              className="flex w-48 flex-none snap-start flex-col overflow-hidden rounded-[0.625rem] bg-sheet"
             >
               {image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={image} alt="" className="h-28 w-full rounded-lg object-cover" />
+                <img src={image} alt="" loading="lazy" className="h-28 w-full object-cover" />
               ) : (
-                <div className="flex h-28 w-full items-center justify-center rounded-lg bg-slate-100 text-2xl">
-                  🎸
+                <div className="flex h-28 w-full items-center justify-center bg-stub font-display text-5xl font-black text-ink/30">
+                  {item.artist_name.charAt(0).toUpperCase()}
                 </div>
               )}
-              <h3 className="mt-2 truncate font-semibold text-slate-900">
-                <Link href={`/artist/${item.artist_id}`} className="hover:text-indigo-600">
-                  {item.artist_name}
-                </Link>
-              </h3>
-              {item.genre && (
-                <p className="truncate text-xs font-medium capitalize text-indigo-600">
-                  {item.genre}
+              <div className="flex flex-1 flex-col p-3">
+                <h3 className="break-words font-display text-xl font-extrabold leading-[1.05]">
+                  <Link href={`/artist/${item.artist_id}`} className="hover:text-pink">
+                    {item.artist_name}
+                  </Link>
+                </h3>
+                {item.genre && (
+                  <p className="mt-0.5 truncate text-xs font-semibold capitalize text-pink-deep">
+                    {item.genre}
+                  </p>
+                )}
+                <p className="mt-2 text-xs">
+                  <Link href={`/event/${item.event_id}`} className="font-semibold hover:text-pink">
+                    {formatDate(item.starts_at)}
+                  </Link>
                 </p>
-              )}
-              <p className="mt-1 text-xs text-slate-600">
-                <Link href={`/event/${item.event_id}`} className="hover:text-indigo-600">
-                  {formatDate(item.starts_at)}
-                </Link>
-              </p>
-              <p className="truncate text-xs text-slate-500">
-                {item.venue_name} · {formatDistance(item.distance_m)}
-              </p>
-              <div className="mt-auto pt-2">
-                <ArtistFollowButton artistId={item.artist_id} />
+                <p className="truncate text-xs text-ink-soft">
+                  {item.venue_name}, {formatDistance(item.distance_m)}
+                </p>
+                <div className="mt-auto pt-3">
+                  <ArtistFollowButton artistId={item.artist_id} />
+                </div>
               </div>
-            </article>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 }

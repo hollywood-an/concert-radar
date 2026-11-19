@@ -79,12 +79,12 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search for an address or city"
           aria-label="Search for an address or city"
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="field"
         />
         <button
           type="submit"
           disabled={searching || query.trim().length < 3}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="button-quiet flex-none"
         >
           {searching ? "Searching…" : "Search"}
         </button>
@@ -95,16 +95,16 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
         </p>
       )}
       {results !== null && (
-        <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+        <ul className="mt-2 divide-y divide-line overflow-hidden rounded-lg border border-line bg-sheet">
           {results.length === 0 && (
-            <li className="px-3 py-2 text-sm text-slate-500">No places found.</li>
+            <li className="px-3 py-2 text-sm text-ink-soft">No places found.</li>
           )}
           {results.map((place) => (
             <li key={`${place.lat},${place.lon}`}>
               <button
                 type="button"
                 onClick={() => choose(place)}
-                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                className="w-full px-3 py-2 text-left text-sm text-ink hover:bg-paper"
               >
                 {place.label}
               </button>
@@ -112,7 +112,7 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
           ))}
         </ul>
       )}
-      <div className="mt-3 h-64 overflow-hidden rounded-xl border border-slate-200">
+      <div className="mt-3 h-64 overflow-hidden rounded-[0.625rem] border border-line">
         <Map
           ref={mapRef}
           initialViewState={{
@@ -121,6 +121,9 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
             zoom: 10,
           }}
           mapStyle={OSM_STYLE}
+          // The map sits in the middle of a scrolling form: without this, scrolling the
+          // page over it zooms the map and the page stops moving.
+          cooperativeGestures
           onClick={handleClick}
           // Guard against a stale container-size read when the map mounts mid-hydration.
           onLoad={(event) => {
@@ -137,7 +140,7 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
               onDragEnd={(event) =>
                 onChange({ lat: event.lngLat.lat, lon: event.lngLat.lng })
               }
-              color="#4f46e5"
+              color="#E3126B"
             />
           )}
         </Map>

@@ -61,31 +61,34 @@ export default function ArtistSearchBar() {
           if (results.length > 0) setOpen(true);
         }}
         placeholder="Search artists to follow…"
-        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+        aria-label="Search artists to follow"
+        className="field !rounded-full !px-5"
       />
       {searching && (
-        <span className="absolute right-4 top-2.5 text-sm text-slate-400">searching…</span>
+        <span className="absolute right-10 top-2.5 text-sm text-ink-faint">Searching…</span>
       )}
       {open && (
-        <ul className="absolute z-20 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+        <ul className="absolute z-20 mt-2 max-h-80 w-full overflow-auto rounded-[0.625rem] border border-line bg-sheet py-1 shadow-lg">
           {results.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-slate-500">No artists found.</li>
+            <li className="px-4 py-3 text-sm text-ink-soft">
+              No artist found by that name. Check the spelling, or try another.
+            </li>
           ) : (
             results.map((artist) => (
               <li
                 key={artist.id}
-                className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-slate-50"
+                className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-paper"
               >
                 <div className="min-w-0">
                   <Link
                     href={`/artist/${artist.id}`}
-                    className="block truncate text-sm font-medium text-slate-900 hover:text-indigo-600"
+                    className="block truncate font-display text-lg font-extrabold leading-tight text-ink hover:text-pink"
                   >
                     {artist.name}
                   </Link>
                   {artist.genres.length > 0 && (
-                    <p className="truncate text-xs text-slate-500">
-                      {artist.genres.join(" · ")}
+                    <p className="truncate text-xs text-ink-soft">
+                      {artist.genres.slice(0, 5).join(", ")}
                     </p>
                   )}
                 </div>
