@@ -173,3 +173,23 @@ async def test_feed_pagination_walks_all_items_without_duplicates(
     assert page_sizes == [2, 2, 1]
     assert len(seen) == len(set(seen)) == 5
     assert set(seen) == created
+
+
+async def test_feed_orders_equal_scores_soonest_first(
+    client: httpx.AsyncClient, db: AsyncSession
+) -> None:
+    """With no follows every show scores the same, so the feed lists the soonest first."""
+    days = [40, 5, 90, 12]
+    for offset in days:
+        await create_event(
+            db,
+            starts_at=datetime.now(UTC) + timedelta(days=offset),
+            lineup=((f"Artist {offset}", 0),),
+            title=f"Show in {offset} days",
+        )
+    headers = await auth_headers(client, "calendar@example.com")
+    response = await client.get("/feed", headers=headers)
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len({item["score"] for item in items}) == 1
+    assert [item["title"] for item in items] == [f"Show in {d} days" for d in sorted(days)]
