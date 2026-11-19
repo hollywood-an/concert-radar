@@ -49,6 +49,29 @@ environment secrets**, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The
 [Terraform README](../infra/terraform/README.md#deploy-access-key) has the commands that create
 the key and store it without printing it.
 
+## Frontend on Vercel (optional)
+
+The same Next.js app can also be served from Vercel, calling the API on the EC2 host. The
+host keeps serving its own copy, so either URL works.
+
+1. Create a Vercel project from this repo with **Root Directory** `web`. Vercel detects
+   Next.js and pnpm on its own.
+2. Set the project environment variable `NEXT_PUBLIC_GATEWAY_URL` to `https://api.<PUBLIC_HOST>`
+   for Production and Preview. It is inlined into the browser bundle at build time, so
+   redeploy after changing it.
+3. Let the API accept the Vercel origins: set the repository variable `CORS_ORIGIN_REGEX`
+   and run the Deploy workflow. The pattern is matched against the whole origin, so list
+   each allowed form, for example the production domain and the team's preview URLs:
+
+   ```bash
+   gh variable set CORS_ORIGIN_REGEX --body \
+     'https://<project>\.vercel\.app|https://<project>-[a-z0-9-]+-<team-slug>\.vercel\.app'
+   ```
+
+Pushes to `main` then deploy to both places: Vercel builds the frontend, and the Deploy
+workflow rolls the host. The WebSocket (`/ws/feed`) connects straight to the API host. If the
+host's Elastic IP ever changes, update `NEXT_PUBLIC_GATEWAY_URL` and redeploy on Vercel.
+
 ## Operating it
 
 ```bash

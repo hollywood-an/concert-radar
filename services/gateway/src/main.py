@@ -13,7 +13,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from src import ws
-from src.config import get_settings
+from src.config import Settings, get_settings
 from src.deps import get_sessionmaker
 from src.kafka import get_taste_publisher
 from src.recommender import get_recommender
@@ -36,14 +36,20 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     await get_recommender().aclose()
 
 
+def add_cors(application: FastAPI, settings: Settings) -> None:
+    """Allow browser calls from the configured origins and the optional origin pattern."""
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex or None,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
 app = FastAPI(title="Concert Radar Gateway", lifespan=_lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_settings().cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+add_cors(app, get_settings())
 app.include_router(auth.router)
 app.include_router(feed.router)
 app.include_router(events.router)

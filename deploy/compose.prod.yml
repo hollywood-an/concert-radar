@@ -77,6 +77,8 @@ services:
       <<: *python-env
       JWT_SECRET: ${JWT_SECRET:?}
       CORS_ORIGINS: '["https://${PUBLIC_HOST:?}"]'
+      # Optional: further browser origins, e.g. the Vercel-hosted frontend and its previews.
+      CORS_ORIGIN_REGEX: "${CORS_ORIGIN_REGEX:-}"
       RECOMMENDER_TARGET: recommender:50051
     depends_on: *needs-data
     mem_limit: 384m

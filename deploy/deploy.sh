@@ -6,6 +6,9 @@
 #   PUBLIC_HOST=<ip-with-dashes>.sslip.io AWS_REGION=us-east-2 RAW_BUCKET=<bucket> \
 #   deploy/deploy.sh
 #
+# Optional: CORS_ORIGIN_REGEX, a pattern for extra browser origins the API accepts (the
+# Vercel-hosted frontend). It must not contain a single quote.
+#
 # Secrets never pass through GitHub: the Ticketmaster key is read from SSM Parameter Store,
 # and the database password, JWT secret, and Jaeger password are generated here on the
 # first deploy and stored back in SSM, so every later deploy (or a rebuilt host) reuses them.
@@ -52,6 +55,7 @@ ECR_REGISTRY=$ECR_REGISTRY
 PUBLIC_HOST=$PUBLIC_HOST
 AWS_REGION=$AWS_REGION
 RAW_BUCKET=${RAW_BUCKET:-}
+CORS_ORIGIN_REGEX='${CORS_ORIGIN_REGEX:-}'
 POSTGRES_PASSWORD=$postgres_password
 JWT_SECRET=$jwt_secret
 JAEGER_PASSWORD_HASH='$jaeger_hash'
