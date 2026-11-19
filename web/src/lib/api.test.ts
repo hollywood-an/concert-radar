@@ -45,8 +45,13 @@ describe("getFeed", () => {
     const params = new URL(requests[0].url).searchParams;
     expect(params.get("limit")).toBe("50");
     expect(params.get("cursor")).toBe("cursor-2");
-    expect(params.get("date_from")).toBe("2026-10-01T00:00:00Z");
-    expect(params.get("date_to")).toBe("2026-10-31T23:59:59Z");
+    // Local calendar days: from local midnight on the first to the end of the last.
+    expect(new Date(params.get("date_from") ?? "").getTime()).toBe(
+      new Date("2026-10-01T00:00:00").getTime(),
+    );
+    expect(new Date(params.get("date_to") ?? "").getTime()).toBe(
+      new Date("2026-10-31T23:59:59.999").getTime(),
+    );
     expect(params.get("max_distance_m")).toBe("16093.4");
     expect(params.get("max_price_cents")).toBe("5000");
     expect(params.getAll("genres")).toEqual(["indie rock", "jazz"]);
