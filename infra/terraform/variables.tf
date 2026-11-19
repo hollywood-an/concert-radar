@@ -5,9 +5,9 @@ variable "region" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type for the single Docker Compose host."
+  description = "EC2 instance type for the single Docker Compose host. The default is one of the few types an AWS Free plan account can launch; on a Paid plan, t3a.medium (same 2 vCPU / 4 GB) costs less than half as much."
   type        = string
-  default     = "t3a.medium"
+  default     = "c7i-flex.large"
 }
 
 variable "github_repo" {

@@ -6,7 +6,7 @@ Run Command. There is no SSH: port 22 is closed and the host has no key pair.
 
 This configuration creates:
 
-- an Amazon Linux 2023 `t3a.medium` host (30 GB encrypted gp3, 2 GB swap,
+- an Amazon Linux 2023 `c7i-flex.large` host (2 vCPU, 4 GB; 30 GB encrypted gp3, 2 GB swap,
   IMDSv2 only) with an Elastic IP and a security group open on 80 and 443
 - nine ECR repositories `concert-radar/*` (immutable tags, scan on push,
   last 10 images kept)
@@ -92,9 +92,31 @@ resolves to that IP without any DNS setup.
 
 ## Cost and teardown
 
-About $1.12/day in us-east-2: the instance (~$0.90), the public IPv4 address
+About $2.24/day in us-east-2: the instance (~$2.04), the public IPv4 address
 ($0.12), the 30 GB volume (~$0.08), and a few cents of ECR and S3 storage.
-CPU credits are `standard`, so the instance cannot run up surplus-credit charges.
+
+The default type is `c7i-flex.large` because an AWS **Free plan** account can
+launch only a short list of instance types, and this is the cheapest one on it
+with 4 GB of memory. On a Free plan the cost comes out of the plan's credits
+($100 lasts about 45 days of uptime), nothing is ever charged to a card, and
+`budget_email` can be left out. On a **Paid plan**, pass
+`-var instance_type=t3a.medium` to cut the bill to about $1.12/day; T-family
+hosts get `standard` CPU credits, so they cannot run up surplus-credit charges.
+
+Before the first apply on a Free plan, confirm the account can launch the host:
+
+```sh
+# c7i-flex.large must be in this list
+aws ec2 describe-instance-types --filters Name=free-tier-eligible,Values=true \
+  --query 'InstanceTypes[].InstanceType' --output text
+# must print an image name, not []
+aws ec2 describe-images --filters Name=free-tier-eligible,Values=true \
+  --image-ids "$(aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 --query Parameter.Value --output text)" \
+  --query 'Images[].Name'
+# must be at least 2 (vCPUs for running On-Demand standard instances)
+aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A \
+  --query Quota.Value
+```
 
 Stopping the instance (`aws ec2 stop-instances --instance-ids <instance_id>`)
 cuts the bill to about $0.20/day for the volume and the address. The Elastic IP

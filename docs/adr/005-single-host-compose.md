@@ -35,3 +35,10 @@ Let's Encrypt certificates for `<ip>.sslip.io` hostnames, so no domain is needed
   balancer with RDS and MSK, reusing the same images.
 - The gateway's WebSocket push uses one Kafka consumer group, so it runs as a single replica;
   scaling it out would need per-replica groups or a fan-out layer.
+
+## Update (2026-11-19)
+
+The demo account is on the AWS Free plan, which can launch only a short list of instance
+types, and t3a.medium is not on it. The default host is now a c7i-flex.large: the same
+2 vCPU / 4 GB and x86 architecture, but about $2.24/day instead of $1.12/day, paid from the
+plan's credits. `-var instance_type=t3a.medium` restores the original choice on a Paid plan.

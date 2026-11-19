@@ -173,7 +173,7 @@ flowchart LR
     deploy -- OIDC role, no stored keys --> ECR[(Amazon ECR)]
     deploy -- SSM Run Command --> host
     sched[EventBridge Scheduler<br/>every 6 h] -- SSM Run Command --> host
-    subgraph host [EC2 t3a.medium · Docker Compose]
+    subgraph host [EC2 c7i-flex.large · Docker Compose]
         caddy[Caddy<br/>Let's Encrypt] --> webc[web] & gw[gateway] & jg[Jaeger UI]
         gw -- gRPC --> rec[recommender]
         workers[deduper · enricher<br/>matcher · notifier] --- rp[Redpanda] & db[(Postgres)]
