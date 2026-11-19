@@ -9,6 +9,10 @@ resolves artists against MusicBrainz, embeds their genres into a shared vector s
 streams every new show through an event-driven pipeline to the people who should hear
 about it: live in the app and in a daily email digest.
 
+**Live demo:** [concert-radar-sigma.vercel.app](https://concert-radar-sigma.vercel.app). Sign in
+with any email address; there is no password. The API runs on one small AWS host paid for with
+free-plan credits, so the demo may be offline.
+
 ![Ranked feed of upcoming shows near Columbus, OH](docs/images/feed.png)
 
 | Clustered map of every show in range | Event page | Artist page with similar artists |
@@ -60,9 +64,9 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
 - **Event-driven and idempotent.** Every consumer commits offsets after handling a message
   and every write is an upsert, so replays are safe; malformed messages are skipped, anything
   unexpected crashes the consumer so it restarts from its last committed offset.
-- **CI/CD on every pull request.** GitHub Actions runs ruff, `mypy --strict`, and **203 tests**
-  (175 Python integration tests against real Postgres, Redpanda, and MinIO via testcontainers,
-  plus 28 Vitest tests), builds and smoke-tests all 9 production images, and validates the
+- **CI/CD on every pull request.** GitHub Actions runs ruff, `mypy --strict`, and **217 tests**
+  (177 Python integration tests against real Postgres, Redpanda, and MinIO via testcontainers,
+  plus 40 Vitest tests), builds and smoke-tests all 9 production images, and validates the
   Terraform. `main` only accepts green pull requests.
 - **Contract-first gRPC.** The recommender's API is defined in
   [`proto/`](proto/recommender/v1/recommender.proto); CI runs `buf lint` and `buf breaking`
@@ -90,7 +94,7 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
 | Backend | Python 3.12, FastAPI, gRPC (grpcio, protobuf, buf), aiokafka, SQLAlchemy 2 (async), Pydantic v2, structlog |
 | Data | PostgreSQL 16, PostGIS, pgvector (HNSW), pg_trgm, Redpanda (Kafka API), S3 |
 | ML | sentence-transformers `all-MiniLM-L6-v2` (CPU-only PyTorch) |
-| Frontend | Next.js 14, TypeScript (strict), Redux Toolkit, Tailwind CSS, MapLibre GL |
+| Frontend | Next.js 14, TypeScript (strict), Redux Toolkit, Tailwind CSS, MapLibre GL, deployed on Vercel |
 | Infra | Docker, Docker Compose, Caddy, Terraform, AWS (EC2, ECR, S3, IAM, SSM, EventBridge) |
 | Quality | GitHub Actions, pytest + testcontainers, Vitest + MSW, ruff, mypy, k6, OpenTelemetry + Jaeger |
 

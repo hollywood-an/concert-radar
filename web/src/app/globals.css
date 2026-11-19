@@ -2,6 +2,138 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-slate-50 text-slate-900;
+@layer base {
+  body {
+    @apply bg-paper font-sans text-ink;
+  }
+
+  /* One visible focus style everywhere, for keyboard users only. */
+  :focus-visible {
+    outline: 2px solid theme("colors.ink.DEFAULT");
+    outline-offset: 2px;
+  }
+
+  input[type="range"] {
+    accent-color: theme("colors.pink.DEFAULT");
+  }
+
+  ::selection {
+    background: theme("colors.highlighter.DEFAULT");
+    color: theme("colors.ink.DEFAULT");
+  }
+}
+
+@layer components {
+  /* A show is a ticket: a date stub, a perforation, and the body. The two notches at the
+     ends of the perforation are cut out of the shape with masks, so the page shows through.
+     --stub is the stub's width, which is where the perforation sits. */
+  .ticket {
+    --stub: 4.75rem;
+    --notch: 0.5rem;
+    @apply relative flex bg-sheet;
+    border-radius: 0.625rem;
+    -webkit-mask:
+      radial-gradient(circle var(--notch) at var(--stub) 0, #0000 97%, #000) top / 100% 51% no-repeat,
+      radial-gradient(circle var(--notch) at var(--stub) 100%, #0000 97%, #000) bottom / 100% 51% no-repeat;
+    mask:
+      radial-gradient(circle var(--notch) at var(--stub) 0, #0000 97%, #000) top / 100% 51% no-repeat,
+      radial-gradient(circle var(--notch) at var(--stub) 100%, #0000 97%, #000) bottom / 100% 51% no-repeat;
+  }
+
+  /* The show page's own ticket: a wider stub once there is room for it. */
+  .ticket-lg {
+    --stub: 5.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .ticket-lg {
+      --stub: 7.5rem;
+      --notch: 0.75rem;
+    }
+  }
+
+  /* The stub's right edge is the perforation. */
+  .ticket-stub {
+    @apply flex flex-none flex-col items-center justify-center bg-stub text-center text-ink;
+    width: var(--stub);
+    border-right: 2px dashed theme("colors.paper");
+  }
+
+  /* The mask would clip a box-shadow, so the contact shadow lives on a wrapper. */
+  .ticket-shadow {
+    filter: drop-shadow(0 1px 0 rgb(27 26 75 / 0.14));
+  }
+
+  .button-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-pink px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-pink-deep disabled:opacity-50;
+  }
+
+  .button-quiet {
+    @apply inline-flex items-center justify-center rounded-full border border-ink/25 bg-sheet px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-ink disabled:opacity-50;
+  }
+
+  .field {
+    @apply w-full rounded-lg border border-line bg-sheet px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-ink;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-ink-soft;
+  }
+
+  .link {
+    @apply font-semibold text-pink underline-offset-4 hover:underline;
+  }
+
+  .heading {
+    @apply font-display text-3xl font-extrabold leading-none text-ink;
+  }
+}
+
+/* The radar on the sign-in page: one slow sweep, and shows that light up as it passes. */
+@keyframes radar-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radar-ping {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  8% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+  30% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+}
+
+.radar-sweep {
+  transform-origin: 50% 50%;
+  animation: radar-sweep 8s linear infinite;
+}
+
+.radar-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: radar-ping 8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-sweep,
+  .radar-ping {
+    animation: none;
+  }
+}
+
+/* The map popup uses the same sheet and corner radius as the rest of the app. */
+.maplibregl-popup-content {
+  border-radius: 0.625rem !important;
+  padding: 0.75rem 0.875rem !important;
+  font-family: inherit;
+  box-shadow: 0 6px 24px rgb(27 26 75 / 0.18) !important;
 }

@@ -7,9 +7,11 @@ import type { RootState } from "@/store/store";
 export interface FollowsState {
   artistIds: string[];
   pendingToggles: string[];
+  // False until the first load answers, so "follows nobody" is never assumed too early.
+  loaded: boolean;
 }
 
-const initialState: FollowsState = { artistIds: [], pendingToggles: [] };
+const initialState: FollowsState = { artistIds: [], pendingToggles: [], loaded: false };
 
 export const loadFollows = createAsyncThunk<string[], void, { state: RootState }>(
   "follows/load",
@@ -67,6 +69,7 @@ const followsSlice = createSlice({
     builder
       .addCase(loadFollows.fulfilled, (state, action) => {
         state.artistIds = action.payload;
+        state.loaded = true;
       })
       .addCase(toggleFollow.pending, (state, action) => {
         const { artistId, followed } = action.meta.arg;

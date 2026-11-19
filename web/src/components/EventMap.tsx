@@ -3,6 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import type { GeoJSONSource, MapLayerMouseEvent } from "maplibre-gl";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, { Layer, MapRef, Popup, Source } from "react-map-gl/maplibre";
 
@@ -104,7 +105,7 @@ export default function EventMap({ items, height = "70vh" }: EventMapProps) {
   );
 
   return (
-    <div style={{ height }} className="overflow-hidden rounded-xl border border-slate-200">
+    <div style={{ height }} className="overflow-hidden rounded-[0.625rem] border-2 border-ink">
       <Map
         ref={mapRef}
         initialViewState={
@@ -133,8 +134,8 @@ export default function EventMap({ items, height = "70vh" }: EventMapProps) {
             type="circle"
             filter={["has", "point_count"]}
             paint={{
-              "circle-color": "#4f46e5",
-              "circle-opacity": 0.85,
+              "circle-color": "#1B1A4B",
+              "circle-opacity": 0.92,
               "circle-radius": ["step", ["get", "point_count"], 16, 10, 22, 25, 28],
             }}
           />
@@ -153,8 +154,8 @@ export default function EventMap({ items, height = "70vh" }: EventMapProps) {
             type="circle"
             filter={["!", ["has", "point_count"]]}
             paint={{
-              "circle-color": "#e11d48",
-              "circle-radius": 7,
+              "circle-color": "#E3126B",
+              "circle-radius": 8,
               "circle-stroke-width": 2,
               "circle-stroke-color": "#ffffff",
             }}
@@ -170,27 +171,31 @@ export default function EventMap({ items, height = "70vh" }: EventMapProps) {
             closeOnClick={false}
             maxWidth="320px"
           >
-            <div className="p-1">
-              <p className="text-sm font-semibold text-slate-900">{selected.artist_name}</p>
-              <p className="text-xs text-slate-600">
-                {formatDate(selected.starts_at)}
+            <div className="font-sans text-ink">
+              <p className="font-display text-xl font-extrabold leading-tight">
+                {selected.artist_name}
+              </p>
+              <p className="mt-1 text-xs">
+                <span className="font-semibold">{formatDate(selected.starts_at)}</span>
                 <br />
-                {selected.venue_name}
-                {selected.venue_city ? `, ${selected.venue_city}` : ""}
+                <span className="text-ink-soft">
+                  {selected.venue_name}
+                  {selected.venue_city ? `, ${selected.venue_city}` : ""}
+                </span>
               </p>
               {selectedMatch && (
-                <p className="mt-1 text-xs font-medium text-indigo-700">{selectedMatch}</p>
+                <p className="mt-1.5 text-xs font-semibold text-pink-deep">{selectedMatch}</p>
               )}
-              {selected.source_url && (
-                <a
-                  href={selected.source_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-block text-xs font-medium text-indigo-600 hover:underline"
-                >
-                  Tickets ↗
-                </a>
-              )}
+              <p className="mt-2 flex gap-4 text-xs">
+                <Link href={`/event/${selected.event_id}`} className="link">
+                  Show details
+                </Link>
+                {selected.source_url && (
+                  <a href={selected.source_url} target="_blank" rel="noreferrer" className="link">
+                    Get tickets<span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                )}
+              </p>
             </div>
           </Popup>
         )}

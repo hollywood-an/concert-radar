@@ -92,67 +92,72 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
           type="button"
           aria-label="Close filters"
           onClick={onClose}
-          className="fixed inset-0 z-30 cursor-default bg-slate-900/20"
+          className="fixed inset-0 z-30 cursor-default bg-ink/30"
         />
       )}
       {/* Shadow only while open: off-screen, it would bleed onto the page's right edge. */}
       <aside
         ref={asideRef}
         aria-label="Filters"
-        className={`fixed right-0 top-0 z-40 h-full w-80 max-w-full transform overflow-y-auto bg-white p-6 transition-transform ${
+        className={`fixed right-0 top-0 z-40 h-full w-80 max-w-full transform overflow-y-auto bg-sheet p-6 transition-transform ${
           open ? "translate-x-0 shadow-2xl" : "translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Filters</h2>
+          <h2 className="heading">Filters</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm font-medium text-slate-500 hover:text-slate-900"
+            className="text-sm font-semibold text-ink underline-offset-4 hover:text-pink hover:underline"
           >
             Close
           </button>
         </div>
 
         <section className="mt-6">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Date range
+          <h3 className="text-sm font-semibold text-ink">
+            Dates
           </h3>
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              type="date"
-              value={draft.dateRange?.[0] ?? ""}
-              onChange={(event) => {
-                const from = event.target.value;
-                const to = draft.dateRange?.[1] ?? from;
-                setDraft({ ...draft, dateRange: from ? [from, to < from ? from : to] : null });
-              }}
-              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-            />
-            <span className="text-slate-400">–</span>
-            <input
-              type="date"
-              value={draft.dateRange?.[1] ?? ""}
-              onChange={(event) => {
-                const to = event.target.value;
-                const from = draft.dateRange?.[0] ?? to;
-                setDraft({ ...draft, dateRange: to ? [from > to ? to : from, to] : null });
-              }}
-              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-            />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <label className="text-xs text-ink-soft">
+              From
+              <input
+                type="date"
+                value={draft.dateRange?.[0] ?? ""}
+                onChange={(event) => {
+                  const from = event.target.value;
+                  const to = draft.dateRange?.[1] ?? from;
+                  setDraft({ ...draft, dateRange: from ? [from, to < from ? from : to] : null });
+                }}
+                className="field mt-1 !px-2 !py-1.5"
+              />
+            </label>
+            <label className="text-xs text-ink-soft">
+              To
+              <input
+                type="date"
+                value={draft.dateRange?.[1] ?? ""}
+                onChange={(event) => {
+                  const to = event.target.value;
+                  const from = draft.dateRange?.[0] ?? to;
+                  setDraft({ ...draft, dateRange: to ? [from > to ? to : from, to] : null });
+                }}
+                className="field mt-1 !px-2 !py-1.5"
+              />
+            </label>
           </div>
         </section>
 
         <section className="mt-6">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <h3 className="text-sm font-semibold text-ink">
             Genres
           </h3>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             {genreOptions.length === 0 && (
-              <p className="col-span-2 text-sm text-slate-400">No genres loaded yet.</p>
+              <p className="col-span-2 text-sm text-ink-faint">No genres loaded yet.</p>
             )}
             {genreOptions.map((genre) => (
-              <label key={genre} className="flex items-center gap-2 text-sm text-slate-700">
+              <label key={genre} className="flex items-center gap-2 text-sm text-ink">
                 <input
                   type="checkbox"
                   checked={draft.genres.includes(genre)}
@@ -164,7 +169,7 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
                         : draft.genres.filter((g) => g !== genre),
                     })
                   }
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 accent-pink"
                 />
                 <span className="truncate">{genre}</span>
               </label>
@@ -173,15 +178,16 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
         </section>
 
         <section className="mt-6">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Max distance{" "}
-            {draft.maxDistance !== null && (
-              <span className="normal-case text-slate-700">
-                — {(draft.maxDistance / MILES).toFixed(0)} mi
-              </span>
-            )}
+          <h3 className="text-sm font-semibold text-ink">
+            <label htmlFor="filter-distance">Distance</label>
           </h3>
+          <p className="mt-0.5 text-sm text-ink-soft">
+            {draft.maxDistance !== null
+              ? `Within ${(draft.maxDistance / MILES).toFixed(0)} miles`
+              : "Any, up to your travel distance"}
+          </p>
           <input
+            id="filter-distance"
             type="range"
             min={1}
             max={maxMiles}
@@ -194,21 +200,24 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
               const miles = Number(event.target.value);
               setDraft({ ...draft, maxDistance: miles >= maxMiles ? null : miles * MILES });
             }}
-            className="mt-2 w-full accent-indigo-600"
+            className="mt-2 w-full"
           />
         </section>
 
         <section className="mt-6">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Max price{" "}
-            {draft.maxPrice !== null && (
-              <span className="normal-case text-slate-700">
-                — ${(draft.maxPrice / 100).toFixed(0)}
-              </span>
-            )}
+          <h3 className="text-sm font-semibold text-ink">
+            <label htmlFor="filter-price">Price</label>
           </h3>
+          {(anyPriced || draft.maxPrice !== null) && (
+            <p className="mt-0.5 text-sm text-ink-soft">
+              {draft.maxPrice !== null
+                ? `Tickets starting at ${(draft.maxPrice / 100).toFixed(0)} dollars or less`
+                : "Any price"}
+            </p>
+          )}
           {anyPriced || draft.maxPrice !== null ? (
             <input
+              id="filter-price"
               type="range"
               min={10}
               max={200}
@@ -218,10 +227,10 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
                 const dollars = Number(event.target.value);
                 setDraft({ ...draft, maxPrice: dollars >= 200 ? null : dollars * 100 });
               }}
-              className="mt-2 w-full accent-indigo-600"
+              className="mt-2 w-full"
             />
           ) : (
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm text-ink-faint">
               None of these shows list a price yet, so there is nothing to filter by.
             </p>
           )}
@@ -231,16 +240,16 @@ export default function FilterDrawer({ open, onClose }: FilterDrawerProps) {
           <button
             type="button"
             onClick={() => apply(draft)}
-            className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
+            className="button-primary flex-1"
           >
-            Apply
+            Show results
           </button>
           <button
             type="button"
             onClick={() => apply(EMPTY)}
-            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="button-quiet"
           >
-            Clear
+            Clear all
           </button>
         </div>
       </aside>
