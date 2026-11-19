@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
+
+import { useSessionReady } from "@/app/providers";
 import NavBar from "@/components/NavBar";
-import { useAppSelector } from "@/store/hooks";
 
 export function PageNotice({ children }: { children: React.ReactNode }) {
   return (
@@ -14,10 +16,19 @@ export function PageNotice({ children }: { children: React.ReactNode }) {
 
 // Pages that need a session show this while signed out; the login form lives on the Feed.
 export function SignInNotice({ purpose }: { purpose: string }) {
-  const status = useAppSelector((state) => state.auth.status);
+  const sessionReady = useSessionReady();
   return (
     <PageNotice>
-      {status === "idle" ? `Sign in on the Feed page to ${purpose}.` : "Loading…"}
+      {sessionReady ? (
+        <>
+          <Link href="/" className="font-medium text-indigo-600 hover:underline">
+            Sign in
+          </Link>{" "}
+          to {purpose}.
+        </>
+      ) : (
+        "Loading…"
+      )}
     </PageNotice>
   );
 }

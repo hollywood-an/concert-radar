@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { useSessionReady } from "@/app/providers";
 import LocationPicker from "@/components/LocationPicker";
 import NavBar from "@/components/NavBar";
 import SpotifyImportButton from "@/components/SpotifyImportButton";
@@ -24,7 +26,8 @@ function SettingsForm() {
   const [location, setLocation] = useState<Location | null>(null);
   const [radiusMiles, setRadiusMiles] = useState(50);
   const [emailAlerts, setEmailAlerts] = useState(true);
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const sessionReady = useSessionReady();
   const [importedBanner, setImportedBanner] = useState<number | null>(null);
 
   // The Spotify callback proxy lands here with ?token=...&imported=N.
@@ -52,20 +55,39 @@ function SettingsForm() {
   if (token === null || user === null) {
     return (
       <p className="mt-10 text-center text-sm text-slate-500">
-        Sign in on the Feed page to manage settings.
+        {sessionReady ? (
+          <>
+            <Link href="/" className="font-medium text-indigo-600 hover:underline">
+              Sign in
+            </Link>{" "}
+            to manage settings.
+          </>
+        ) : (
+          "Loading…"
+        )}
       </p>
     );
   }
 
   const save = async () => {
-    setSaved(false);
-    const updated = await patchMe(token, {
-      home_location: location,
-      travel_radius_m: Math.round(radiusMiles * MILES),
-    });
-    dispatch(userUpdated(updated));
-    await dispatch(savePrefs({ email: emailAlerts }));
-    setSaved(true);
+    setSaveState("saving");
+    try {
+      const updated = await patchMe(token, {
+        home_location: location,
+        travel_radius_m: Math.round(radiusMiles * MILES),
+      });
+      dispatch(userUpdated(updated));
+      await dispatch(savePrefs({ email: emailAlerts })).unwrap();
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
+  };
+
+  // Any edit after a save means the form no longer matches what was saved.
+  const edited = <T,>(set: (value: T) => void) => (value: T) => {
+    set(value);
+    setSaveState("idle");
   };
 
   return (
@@ -85,7 +107,7 @@ function SettingsForm() {
           near.
         </p>
         <div className="mt-3">
-          <LocationPicker value={location} onChange={setLocation} />
+          <LocationPicker value={location} onChange={edited(setLocation)} />
         </div>
         {location && (
           <p className="mt-2 text-xs text-slate-500">
@@ -103,7 +125,7 @@ function SettingsForm() {
           min={1}
           max={150}
           value={radiusMiles}
-          onChange={(event) => setRadiusMiles(Number(event.target.value))}
+          onChange={(event) => edited(setRadiusMiles)(Number(event.target.value))}
           className="mt-3 w-full accent-indigo-600"
         />
       </section>
@@ -116,7 +138,7 @@ function SettingsForm() {
           <input
             type="checkbox"
             checked={emailAlerts}
-            onChange={(event) => setEmailAlerts(event.target.checked)}
+            onChange={(event) => edited(setEmailAlerts)(event.target.checked)}
             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
           />
           Email me a daily digest when artists I follow have shows near me
@@ -142,11 +164,19 @@ function SettingsForm() {
         <button
           type="button"
           onClick={() => void save()}
-          className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
+          disabled={saveState === "saving"}
+          className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
         >
-          Save settings
+          {saveState === "saving" ? "Saving…" : "Save settings"}
         </button>
-        {saved && <span className="text-sm font-medium text-green-600">Saved ✓</span>}
+        <span role="status" className="text-sm font-medium">
+          {saveState === "saved" && <span className="text-green-700">Settings saved</span>}
+          {saveState === "error" && (
+            <span className="text-red-700">
+              Couldn&apos;t save. Check your connection and try again.
+            </span>
+          )}
+        </span>
       </div>
     </>
   );

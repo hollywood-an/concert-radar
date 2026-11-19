@@ -4,9 +4,9 @@ import Link from "next/link";
 
 import ArtistFollowButton from "@/components/ArtistFollowButton";
 import StatusBadge from "@/components/StatusBadge";
-import { formatDate, formatDistance, formatPrice } from "@/lib/format";
+import { formatDate, formatDistance, formatMatch, formatPrice } from "@/lib/format";
 import { dismissEvent } from "@/store/feedSlice";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { FeedItem } from "@/types";
 
 interface EventCardProps {
@@ -16,7 +16,9 @@ interface EventCardProps {
 
 export default function EventCard({ item, fresh = false }: EventCardProps) {
   const dispatch = useAppDispatch();
+  const followCount = useAppSelector((state) => state.follows.artistIds.length);
   const price = formatPrice(item.price_min_cents, item.price_max_cents);
+  const match = formatMatch(item.score, followCount);
 
   return (
     <article
@@ -89,9 +91,11 @@ export default function EventCard({ item, fresh = false }: EventCardProps) {
             </span>
           )}
           <StatusBadge status={item.status} />
-          <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-700">
-            score {item.score.toFixed(2)}
-          </span>
+          {match && (
+            <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-700">
+              {match}
+            </span>
+          )}
           {item.source_url && (
             <a
               href={item.source_url}
