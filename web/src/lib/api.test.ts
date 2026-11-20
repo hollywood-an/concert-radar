@@ -7,6 +7,7 @@ import {
   geocode,
   getDiscover,
   getFeed,
+  recordActivity,
   unfollowArtist,
 } from "@/lib/api";
 import { EMPTY_PAGE, GATEWAY_URL, server, TOKEN } from "@/test/server";
@@ -150,5 +151,37 @@ describe("feedSocketUrl", () => {
     expect(feedSocketUrl("a+b/c=d e&f")).toBe(
       "ws://gateway.test/ws/feed?token=a%2Bb%2Fc%3Dd%20e%26f",
     );
+  });
+});
+
+describe("recordActivity", () => {
+  it("posts the action and the show with the user's token", async () => {
+    const received = new Promise<Request>((resolve) => {
+      server.use(
+        http.post(`${GATEWAY_URL}/activity`, ({ request }) => {
+          resolve(request.clone());
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+    });
+
+    recordActivity(TOKEN, "ticket_click", "event-1");
+
+    const request = await received;
+    expect(request.headers.get("Authorization")).toBe(`Bearer ${TOKEN}`);
+    expect(await request.json()).toEqual({ kind: "ticket_click", event_id: "event-1" });
+  });
+
+  it("never throws or rejects when the API is down", async () => {
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on("unhandledRejection", onRejection);
+    server.use(http.post(`${GATEWAY_URL}/activity`, () => HttpResponse.error()));
+
+    expect(() => recordActivity(TOKEN, "show_opened", "event-1")).not.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    process.off("unhandledRejection", onRejection);
+    expect(rejections).toEqual([]);
   });
 });

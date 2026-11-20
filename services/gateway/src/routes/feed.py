@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import text
 
 from src.deps import CurrentUser, DbSession
+from src.experiments import FEED_RANKING
 from src.schemas import FeedItem, FeedPage
 
 router = APIRouter(tags=["feed"])
@@ -62,8 +63,24 @@ _FEED_SQL = text(
           SELECT 1 FROM unnest(COALESCE(a.genres, '{}')) AS g
           WHERE lower(g) = ANY(CAST(:genres AS text[]))
       ))
-    ORDER BY score DESC, e.starts_at, e.id
+    ORDER BY
+        CASE WHEN CAST(:followed_first AS boolean) AND EXISTS (
+            SELECT 1 FROM follows f WHERE f.user_id = u.id AND f.artist_id = a.id
+        ) THEN 0 ELSE 1 END,
+        score DESC, e.starts_at, e.id
     LIMIT :limit OFFSET :offset
+    """
+)
+
+# The two orderings can only differ for a user who follows somebody, so only those users
+# enter the experiment. Counting the rest would add users whose feed was the same either
+# way and blur any difference.
+_RECORD_EXPOSURE = text(
+    """
+    INSERT INTO experiment_exposures (experiment, user_id, variant)
+    SELECT CAST(:experiment AS text), CAST(:user_id AS uuid), CAST(:variant AS text)
+    WHERE EXISTS (SELECT 1 FROM follows WHERE user_id = CAST(:user_id AS uuid))
+    ON CONFLICT (experiment, user_id) DO NOTHING
     """
 )
 
@@ -103,11 +120,15 @@ async def get_feed(
     Equal scores sort soonest first. A user who follows nobody has no taste vector, so
     every show scores the same and the feed reads as a plain calendar.
 
+    The order is under an A/B test (`FEED_RANKING`): half of users get shows by artists
+    they follow listed first. The first page records which variant the user saw.
+
     Optional filters narrow the result: a date window, a maximum venue distance, a
     maximum minimum-ticket price (events without price data are excluded when set),
     and a genre list matched case-insensitively against the headliner's genres.
     """
     offset = _decode_cursor(cursor)
+    variant = FEED_RANKING.variant_for(user.id)
     result = await session.execute(
         _FEED_SQL,
         {
@@ -119,9 +140,16 @@ async def get_feed(
             "max_distance_m": max_distance_m,
             "max_price_cents": max_price_cents,
             "genres": [g.lower() for g in genres] if genres else None,
+            "followed_first": variant == FEED_RANKING.treatment,
         },
     )
     rows = result.mappings().all()
+    if offset == 0:
+        await session.execute(
+            _RECORD_EXPOSURE,
+            {"experiment": FEED_RANKING.key, "user_id": user.id, "variant": variant},
+        )
+        await session.commit()
     has_more = len(rows) > limit
     return FeedPage(
         items=[FeedItem.model_validate(dict(row)) for row in rows[:limit]],

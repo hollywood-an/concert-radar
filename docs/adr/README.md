@@ -13,3 +13,4 @@ that forced a choice, the decision, and its consequences.
 | [005](005-single-host-compose.md) | Deploy to one EC2 host with Docker Compose |
 | [006](006-alert-rules.md) | Alert only on followed artists, once a day |
 | [007](007-json-messages.md) | JSON messages with Pydantic contracts on Kafka |
+| [008](008-feed-order-ab-test.md) | A/B test the feed order before changing it |
