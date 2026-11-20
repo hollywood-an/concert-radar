@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator, Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -41,7 +41,11 @@ SEED_VENUE_NAMES = (
     "Nationwide Arena",
 )
 
-STARTS_AT = datetime(2026, 11, 20, 1, 0, tzinfo=UTC)
+# A month ahead, at a fixed hour. A fixed calendar date here once made every test that
+# needs an upcoming show fail on the day that date arrived.
+STARTS_AT = (datetime.now(UTC) + timedelta(days=30)).replace(
+    hour=1, minute=0, second=0, microsecond=0
+)
 
 
 @pytest.fixture(scope="session")
