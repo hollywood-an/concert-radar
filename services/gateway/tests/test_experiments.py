@@ -134,8 +134,11 @@ async def test_treatment_lists_followed_artists_first(
 
     assert [item["title"] for item in control] == ["Closest", "Close", "Followed"]
     assert [item["title"] for item in treatment] == ["Followed", "Closest", "Close"]
-    # Only the order changes; the scores shown to the user are the same.
-    assert {i["title"]: i["score"] for i in control} == {i["title"]: i["score"] for i in treatment}
+    # Only the order changes; the scores shown to the user are the same. (Approximately:
+    # recency is measured from now(), which moves between the two requests.)
+    control_scores = {item["title"]: item["score"] for item in control}
+    treatment_scores = {item["title"]: item["score"] for item in treatment}
+    assert control_scores == pytest.approx(treatment_scores, abs=1e-6)
 
 
 async def test_exposure_is_recorded_once_and_only_for_users_with_follows(
