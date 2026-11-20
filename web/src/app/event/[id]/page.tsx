@@ -9,6 +9,7 @@ import NavBar from "@/components/NavBar";
 import { PageNotice, SignInNotice } from "@/components/PageNotice";
 import StatusBadge from "@/components/StatusBadge";
 import VenueMap from "@/components/VenueMap";
+import { useRecordActivity } from "@/hooks/useRecordActivity";
 import { useResource } from "@/hooks/useResource";
 import { getEvent } from "@/lib/api";
 import { dateParts, formatPrice } from "@/lib/format";
@@ -45,6 +46,15 @@ export default function EventPage({ params }: { params: { id: string } }) {
     [token, params.id],
   );
   const event = useResource(load);
+  const record = useRecordActivity();
+
+  // Once per show page that actually loaded, not per render or per failed address.
+  const loadedId = event.status === "loaded" ? event.data.id : null;
+  useEffect(() => {
+    if (loadedId !== null) {
+      record("show_opened", loadedId);
+    }
+  }, [loadedId, record]);
 
   useEffect(() => {
     if (token !== null) {
@@ -106,6 +116,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                   href={data.source_url}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => record("ticket_click", data.id)}
                   className="button-primary mt-5"
                 >
                   Get tickets<span className="sr-only"> (opens in a new tab)</span>

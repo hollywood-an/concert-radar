@@ -136,6 +136,19 @@ export function dismissEvent(token: string, eventId: string): Promise<void> {
   return request<void>(`/events/${eventId}/dismiss`, { method: "POST" }, token);
 }
 
+export type ActivityKind = "show_opened" | "ticket_click";
+
+// Tells the API what the user did with a show, for the feed-ordering A/B test. Measuring
+// must never get in the user's way, so this returns at once and drops any failure.
+// keepalive lets the request finish when a ticket link navigates away.
+export function recordActivity(token: string, kind: ActivityKind, eventId: string): void {
+  request<void>(
+    "/activity",
+    { method: "POST", body: JSON.stringify({ kind, event_id: eventId }), keepalive: true },
+    token,
+  ).catch(() => undefined);
+}
+
 export function spotifyLogin(token: string): Promise<{ authorize_url: string }> {
   return request<{ authorize_url: string }>("/auth/spotify", { method: "POST" }, token);
 }

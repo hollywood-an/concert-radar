@@ -37,7 +37,7 @@ flowchart LR
 | `matcher` | Decides who hears about what: a match needs an artist the user follows on the lineup of an upcoming show inside their radius ([ADR 006](adr/006-alert-rules.md)). Triggered by newly announced shows and by follows or home-area changes. |
 | `notifier` | Queues matches and change notices, then sends one digest per user per day at 14:00 UTC. |
 | `recommender` | gRPC server (`recommender.v1.RecommenderService`): nearby shows by artists the user doesn't follow yet, ranked by taste and spread across genres. Backs `GET /discover`. |
-| `gateway` | FastAPI REST + WebSocket API: dev sign-in (JWT), ranked feed, discovery, search, follows, settings with address search, event and artist pages, and a live push of new matches. |
+| `gateway` | FastAPI REST + WebSocket API: dev sign-in (JWT), ranked feed, discovery, search, follows, settings with address search, event and artist pages, a live push of new matches, and the feed-order A/B test with its readout. |
 | `web` | Next.js 14, TypeScript, Redux Toolkit: feed with a Discover strip, clustered map, filters, event and artist pages, settings with a map picker and address search. |
 
 ## Ranking
@@ -52,6 +52,12 @@ score = 0.7 × cosine_similarity(user taste, artist genres) + 0.3 × e^(−days 
 A user's taste vector is the average embedding of the artists they follow, recomputed on
 every follow (`update_user_taste_embedding`); with no follows the score is a neutral 0.5.
 Artist pages list the six nearest artists by the same embedding, served by an HNSW index.
+
+**The order is under an A/B test** ([ADR 008](adr/008-feed-order-ab-test.md)). Half of users,
+chosen by a hash of their id, get shows by artists they follow listed first and the rest
+ranked by the same score. The web app reports show opens and ticket clicks to `POST /activity`,
+and `GET /experiments/feed_ranking_v1/results` compares the two halves with a two-proportion
+z-test. It reports a verdict only once each half has enough users for the test to hold.
 
 **Discovery** (the recommender, behind `GET /discover`) answers a different question: which
 artists the user doesn't follow yet are worth a look. It takes each unfollowed headliner's

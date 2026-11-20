@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # The recommender's gRPC address, and how long GET /discover waits for it.
     recommender_target: str = "localhost:50051"
     recommender_timeout_s: float = 2.0
+    # Accounts whose email ends with this are left out of experiment results. example.com
+    # is reserved for documentation and tests, so nobody real signs in with it. Empty: off.
+    experiment_excluded_email_suffix: str = "@example.com"
 
 
 @lru_cache

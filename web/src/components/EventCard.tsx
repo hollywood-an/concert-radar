@@ -5,6 +5,7 @@ import Link from "next/link";
 import ArtistFollowButton from "@/components/ArtistFollowButton";
 import DateStub from "@/components/DateStub";
 import StatusBadge from "@/components/StatusBadge";
+import { useRecordActivity } from "@/hooks/useRecordActivity";
 import { dateParts, formatDistance, formatMatch, formatPrice } from "@/lib/format";
 import { dismissEvent } from "@/store/feedSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -17,6 +18,7 @@ interface EventCardProps {
 
 export default function EventCard({ item, fresh = false }: EventCardProps) {
   const dispatch = useAppDispatch();
+  const record = useRecordActivity();
   const followCount = useAppSelector((state) => state.follows.artistIds.length);
   const following = useAppSelector((state) => state.follows.artistIds.includes(item.artist_id));
   const price = formatPrice(item.price_min_cents, item.price_max_cents);
@@ -94,6 +96,7 @@ export default function EventCard({ item, fresh = false }: EventCardProps) {
                   href={item.source_url}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => record("ticket_click", item.event_id)}
                   className="link ml-auto text-sm"
                 >
                   Get tickets<span className="sr-only"> (opens in a new tab)</span>

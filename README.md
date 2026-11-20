@@ -48,6 +48,11 @@ flowchart LR
   `0.7 × cosine similarity + 0.3 × recency`, and artist pages find similar artists through an
   HNSW index (pgvector). The **Discover** strip ranks unfollowed artists' nearby shows by
   taste, at most two per genre before a genre repeats.
+- **A/B tested:** the feed order is an experiment. Users are split in half by a hash of their
+  id; one half gets shows by followed artists first. The API logs show opens and ticket
+  clicks and compares the halves with a two-proportion z-test
+  ([ADR 008](docs/adr/008-feed-order-ab-test.md)). The demo has too few users for a result
+  yet, and the readout says so.
 - **Alerts:** only for artists you follow, deduplicated per user and show, batched into a
   daily digest, with follow-up notices if a show you were told about is cancelled.
 
@@ -64,9 +69,9 @@ a show's journey from the scraper through the deduper, enricher, and matcher is 
 - **Event-driven and idempotent.** Every consumer commits offsets after handling a message
   and every write is an upsert, so replays are safe; malformed messages are skipped, anything
   unexpected crashes the consumer so it restarts from its last committed offset.
-- **CI/CD on every pull request.** GitHub Actions runs ruff, `mypy --strict`, and **217 tests**
-  (177 Python integration tests against real Postgres, Redpanda, and MinIO via testcontainers,
-  plus 40 Vitest tests), builds and smoke-tests all 9 production images, and validates the
+- **CI/CD on every pull request.** GitHub Actions runs ruff, `mypy --strict`, and **231 tests**
+  (189 Python integration tests against real Postgres, Redpanda, and MinIO via testcontainers,
+  plus 42 Vitest tests), builds and smoke-tests all 9 production images, and validates the
   Terraform. `main` only accepts green pull requests.
 - **Contract-first gRPC.** The recommender's API is defined in
   [`proto/`](proto/recommender/v1/recommender.proto); CI runs `buf lint` and `buf breaking`

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, { Layer, MapRef, Popup, Source } from "react-map-gl/maplibre";
 
+import { useRecordActivity } from "@/hooks/useRecordActivity";
 import { formatDate, formatMatch } from "@/lib/format";
 import { OSM_STYLE } from "@/lib/mapStyle";
 import { eventSelected } from "@/store/mapSlice";
@@ -23,6 +24,7 @@ interface EventMapProps {
 
 export default function EventMap({ items, height = "70vh" }: EventMapProps) {
   const dispatch = useAppDispatch();
+  const record = useRecordActivity();
   const selectedEventId = useAppSelector((state) => state.map.selectedEventId);
   const followCount = useAppSelector((state) => state.follows.artistIds.length);
   const home = useAppSelector((state) => state.auth.user?.home_location ?? null);
@@ -191,7 +193,13 @@ export default function EventMap({ items, height = "70vh" }: EventMapProps) {
                   Show details
                 </Link>
                 {selected.source_url && (
-                  <a href={selected.source_url} target="_blank" rel="noreferrer" className="link">
+                  <a
+                    href={selected.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => record("ticket_click", selected.event_id)}
+                    className="link"
+                  >
                     Get tickets<span className="sr-only"> (opens in a new tab)</span>
                   </a>
                 )}

@@ -1,6 +1,7 @@
 """Pydantic request and response schemas for the gateway API."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -191,3 +192,44 @@ class DiscoverItem(BaseModel):
     artist_image_url: str | None
     genre: str
     similarity: float
+
+
+class ActivityRequest(BaseModel):
+    """Body of POST /activity: something the user did with a show."""
+
+    kind: Literal["show_opened", "ticket_click"]
+    event_id: UUID
+
+
+class VariantCounts(BaseModel):
+    """How many users one variant has, and how many of them did each thing."""
+
+    variant: str
+    users: int
+    opened_show: int
+    clicked_tickets: int
+
+
+class MetricComparison(BaseModel):
+    """Treatment against control on one metric; rates are shares of that variant's users."""
+
+    metric: str
+    control_rate: float | None
+    treatment_rate: float | None
+    difference: float | None
+    ci95_low: float | None
+    ci95_high: float | None
+    p_value: float | None
+    sample_ok: bool
+
+
+class ExperimentResults(BaseModel):
+    """Current readout of one A/B experiment."""
+
+    experiment: str
+    hypothesis: str
+    control: VariantCounts
+    treatment: VariantCounts
+    metrics: list[MetricComparison]
+    users_needed_per_variant: int
+    conclusive: bool
